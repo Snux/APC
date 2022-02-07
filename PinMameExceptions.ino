@@ -428,9 +428,20 @@ byte EX_Pinbot(byte Type, byte Command){
     return(0);}}                                      // no exception rule found for this type so proceed as normal
 
 byte EX_F14Tomcat(byte Type, byte Command){           // Exceptions code for Tomcat, thanks to Snux for sending me this code
+  static int going_to_blank = 0;
   switch(Type){
   case SwitchActCommand:                              // Check for switches
-    if (Command > 64 && Command < 72) {               // If special solenoid switch
+    if (!Command) {
+      digitalWrite(Blanking, LOW);                    // invoke the blanking
+      StopPlayingMusic();
+      StopPlayingSound();
+      return(1); }
+    else if (Command==8) {                            // high score reset
+      for (int i=65; i < 119; i++) {TurnOffLamp(i);}
+      ActivateTimer(500, 0, USB_SwitchHandler);
+      going_to_blank = 1;
+      return(1); }
+    else if (Command > 64 && Command < 72) {               // If special solenoid switch
       if (QuerySolenoid(24))                          // Check if the flippers are active
         return(0);                                    // If they are active then permit the switch
       else
@@ -441,7 +452,7 @@ byte EX_F14Tomcat(byte Type, byte Command){           // Exceptions code for Tom
  // So if Pinmame tries to access one of them, we need to catch it and divert to the RGB instead
  // The RGB lamps are those above number 64, starting with 37 GI lamps, followed by 16 inserts
   case LampOnCommand:                                 // turn on lamp
- 
+    if (going_to_blank) {return(1);}
     if (Command > 8 && Command < 16){ TurnOnLamp(Command + 93);}  // Alpha -> Golf
     else if (Command == 6) {TurnOnLamp(109);}  // Centre Kill
     else if (Command == 45) {TurnOnLamp(110);}  // 5
