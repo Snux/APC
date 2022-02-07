@@ -437,6 +437,49 @@ byte EX_F14Tomcat(byte Type, byte Command){           // Exceptions code for Tom
         return(1);}                                   // otherwise block it, standard Sys11 behaviour
     else
       return (0);
+ // Second Sortie has a number of insert lamps (the clear ones) and all the GI replaced with RGB LEDs.
+ // So if Pinmame tries to access one of them, we need to catch it and divert to the RGB instead
+ // The RGB lamps are those above number 64, starting with 37 GI lamps, followed by 16 inserts
+  case LampOnCommand:                                 // turn on lamp
+ 
+    if (Command > 8 && Command < 16){ TurnOnLamp(Command + 93);}  // Alpha -> Golf
+    else if (Command == 6) {TurnOnLamp(109);}  // Centre Kill
+    else if (Command == 45) {TurnOnLamp(110);}  // 5
+    else if (Command == 47) {TurnOnLamp(111);}  // Release
+    else if (Command == 46) {TurnOnLamp(112);}  // 6
+    else if (Command == 44) {TurnOnLamp(113);}  // 4
+    else if (Command == 41) {TurnOnLamp(114);}  // 3
+    else if (Command == 42) {TurnOnLamp(115);}  // 2
+    else if (Command == 43) {TurnOnLamp(116);}  // 1
+    else if (Command == 63) {TurnOnLamp(117);}  // Ripoff 
+    return(0);                                        // lamp will be turn on. Use return(1) to suppress this
+  
+  case LampOffCommand:                                // turn off lamp
+    if (Command > 8 && Command < 16){ TurnOffLamp(Command + 93);}  // Alpha -> Golf
+    else if (Command == 6) {TurnOffLamp(109);}  // Centre Kill
+    else if (Command == 45) {TurnOffLamp(110);}  // 5
+    else if (Command == 47) {TurnOffLamp(111);}  // Release
+    else if (Command == 46) {TurnOffLamp(112);}  // 6
+    else if (Command == 44) {TurnOffLamp(113);}  // 4
+    else if (Command == 41) {TurnOffLamp(114);}  // 3
+    else if (Command == 42) {TurnOffLamp(115);}  // 2
+    else if (Command == 43) {TurnOffLamp(116);}  // 1
+    else if (Command == 63) {TurnOffLamp(117);}  // Ripoff
+    return(0);                                        // lamp will be turn off. Use return(1) to suppress this 
+
+  // This will catch pinmame trying to enable or disable the GI, so instead we direct to the RGBs
+  case SolenoidActCommand:                            // activate solenoids
+    if (Command == 11){                                // handle the activation of solenoid 2
+      for (int i=65; i < 102; i++) {TurnOffLamp(i);}
+    }
+    else if (Command == 8) {TurnOnLamp(118);}
+    return(0);                                        // solenoid will be activated. Use return(1) to suppress this
+  case SolenoidRelCommand:                            // deactivate solenoids
+    if (Command == 11) {                                // handle the deactivation of solenoid 2
+      for (int i=65; i < 102; i++) {TurnOnLamp(i);}
+    }
+    else if (Command == 8) {TurnOffLamp(118);}
+    return(0);                                        // solenoid will be deactivated. Use return(1) to suppress this
   case SoundCommandCh1:                               // sound commands for channel 1
     if (!Command){                                    // sound command 0x00 - stop sound
       AfterSound = 0;
@@ -684,6 +727,7 @@ void EX_Init(byte GameNumber) {
     break;
   case 44:                                            // F-14 Tomcat
     PinMameException = EX_F14Tomcat;                  // use exception rules for Tomcat
+    for (int i=65; i < 102; i++) {TurnOnLamp(i);}     // Switch on the GI
     break;
   case 67:                                            // Rollergames
     PinMameException = EX_Rollergames;                // use exception rules for Rollergames
