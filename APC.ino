@@ -191,7 +191,7 @@ const byte APC_defaults[64] =  {0,3,3,1,2,0,0,1,      // system default settings
 #define DebugMode  9                                  // debug mode enabled?
 #define BackboxLamps 10																// Column of backbox lamps
 
-const char TxTGameSelect[5][17] = {{" BASE  CODE     "},{" BLACK KNIGHT   "},{"    PINBOT      "},{"REMOTE CONTROL  "},{"   TUTORIAL     "}};
+const char TxTGameSelect[6][17] = {{" BASE  CODE     "},{" BLACK KNIGHT   "},{"    PINBOT      "},{"REMOTE CONTROL  "},{"   TUTORIAL     "},{" F14   TOMCAT   "}};
 const char TxTLEDSelect[4][17] = {{"   NO   LEDS    "},{"   ADDITIONAL   "},{"PLAYFLD ONLY    "},{"PLAYFLDBACKBOX  "}};
 const char TxTDisplaySelect[8][17] = {{"4 ALPHA+CREDIT  "},{" SYS11 PINBOT   "},{" SYS11  F-14    "},{" SYS11  BK2K    "},{" SYS11   TAXI   "},{" SYS11 RIVERBOAT"},{"123456123456    "},{"12345671234567  "}};
 const char TxTConType[3][17] = {{"        OFF     "},{"       ONBOARD  "},{"        USB     "}};
@@ -199,7 +199,7 @@ const char TxTLampColSelect[3][17] = {{"       COLUMN1  "},{"       COLUMN8  "}}
 
 const struct SettingTopic APC_setList[14] = {
     {"DISPLAY TYPE    ",HandleDisplaySetting,&TxTDisplaySelect[0][0],0,7},
-    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,4},
+    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,5},
     {" NO OF  BALLS   ",HandleNumSetting,0,1,5},
     {"  FREE  GAME    ",HandleBoolSetting,0,0,0},
     {"CONNECT TYPE    ",HandleTextSetting,&TxTConType[0][0],0,2},
@@ -362,19 +362,22 @@ void Init_System() {
 void Init_System2(byte State) {                       // state = 0 will restore the settings if no card is found
   switch(APC_settings[ActiveGame]) {                  // init calls for all valid games
   case 0:
-    BC_init();
+    //BC_init();
     break;
   case 1:
-    BK_init();
+    //BK_init();
     break;
   case 2:
-    PB_init();
+    //PB_init();
     break;
   case 3:
     USB_init();
     break;
   case 4:
-    TT_init();
+    //TT_init();
+    break;
+  case 5:
+    F14_init();
     break;
   default:
     WriteUpper("NO GAMESELECTD  ");
