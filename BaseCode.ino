@@ -1,25 +1,25 @@
-// Base Code for APC based pinball machines - change all F14_ prefixes and the following parameters to match your game
+// Base Code for APC based pinball machines - change all BC_ prefixes and the following parameters to match your game
 
-const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
-const byte F14_BallThroughSwitches[4] = {11,12,13,14};    // ball through switches from the plunger lane to the outhole
-const byte F14_PlungerLaneSwitch = 16;
-const byte F14_ACselectRelay = 14;                     // solenoid number of the A/C select relay - set it to 0 if the game doesn't have one
-const byte F14_OutholeKicker = 1;                      // solenoid number of the outhole kicker
-const byte F14_ShooterLaneFeeder = 2;                  // solenoid number of the shooter lane feeder
-const byte F14_InstalledBalls = 4;                     // number of balls installed in the game
-const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
-unsigned int F14_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
+const byte BC_OutholeSwitch = 9;                      // number of the outhole switch
+const byte BC_BallThroughSwitches[3] = {13,12,11};    // ball through switches from the plunger lane to the outhole
+const byte BC_PlungerLaneSwitch = 20;
+const byte BC_ACselectRelay = 12;                     // solenoid number of the A/C select relay - set it to 0 if the game doesn't have one
+const byte BC_OutholeKicker = 1;                      // solenoid number of the outhole kicker
+const byte BC_ShooterLaneFeeder = 2;                  // solenoid number of the shooter lane feeder
+const byte BC_InstalledBalls = 3;                     // number of balls installed in the game
+const byte BC_SearchCoils[15] = {1,4,6,8,13,15,16,17,18,19,20,21,22,14,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
+unsigned int BC_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
 
 #define BCset_OutholeSwitch 0
 #define BCset_BallThroughSwitches 1
-#define BCset_PlungerLaneSwitch 5
-#define BCset_ACselectRelay 6
-#define BCset_OutholeKicker 7
-#define BCset_ShooterLaneFeeder 8
-#define BCset_InstalledBalls 9
+#define BCset_PlungerLaneSwitch 4
+#define BCset_ACselectRelay 5
+#define BCset_OutholeKicker 6
+#define BCset_ShooterLaneFeeder 7
+#define BCset_InstalledBalls 8
 
-const byte F14_defaults[64] = {10,11,12,13,14,16,14,1,        // game default settings
-                              2,4,0,0,0,0,0,0,
+const byte BC_defaults[64] = {9,13,12,11,20,12,1,2,        // game default settings
+                              3,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0,
@@ -27,24 +27,23 @@ const byte F14_defaults[64] = {10,11,12,13,14,16,14,1,        // game default se
                               0,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0};
 
-const struct SettingTopic F14_setList[13] = {{"OUTHOLESWITCH ",HandleNumSetting,0,1,64}, // defines the game specific settings
+const struct SettingTopic BC_setList[12] = {{"OUTHOLESWITCH ",HandleNumSetting,0,1,64}, // defines the game specific settings
     {" BALL  THRU 1 ",HandleNumSetting,0,1,64},
     {" BALL  THRU 2 ",HandleNumSetting,0,1,64},
     {" BALL  THRU 3 ",HandleNumSetting,0,1,64},
-    {" BALL  THRU 4 ",HandleNumSetting,0,1,64},
     {"PLUNGERLN SW  ",HandleNumSetting,0,1,64},
     {"AC SEL RELAY  ",HandleNumSetting,0,0,22},
     {"OUTHOLEKICKER ",HandleNumSetting,0,1,22},
     {"SHOOTERLN FEED",HandleNumSetting,0,1,22},
     {"INSTALD BALLS ",HandleNumSetting,0,1,3},
-   // {" RESET  HIGH  ",F14_ResetHighScores,0,0,0},
+   // {" RESET  HIGH  ",BC_ResetHighScores,0,0,0},
     {"RESTOREDEFAULT",RestoreDefaults,0,0,0},
     {"  EXIT SETTNGS",ExitSettings,0,0,0},
     {"",NULL,0,0,0}};
 
                                     // Duration..11111110...22222111...33322222...43333333...44444444...55555554...66666555
                                     // Duration..65432109...43210987...21098765...09876543...87654321...65432109...43210987
-const struct LampPat F14_AttractPat1[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
+const struct LampPat BC_AttractPat1[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
@@ -102,7 +101,7 @@ const struct LampPat F14_AttractPat1[57] ={{250,0b00000001,0b00000000,0b00000000
                                           {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000},
                                           {0,0,0,0,0,0,0,0}};
 
-const struct LampPat F14_AttractPat2[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
+const struct LampPat BC_AttractPat2[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
                                           {250,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
@@ -160,47 +159,47 @@ const struct LampPat F14_AttractPat2[57] ={{250,0b00000001,0b00000000,0b00000000
                                           {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000},
                                           {0,0,0,0,0,0,0,0}};
 
-const struct LampFlow F14_AttractFlow[3] = {{3,F14_AttractPat1},{10,F14_AttractPat2},{0,0}};
+const struct LampFlow BC_AttractFlow[3] = {{3,BC_AttractPat1},{10,BC_AttractPat2},{0,0}};
 
-struct GameDef F14_GameDefinition = {
-    F14_setList,                                       // GameSettingsList
-    (byte*)F14_defaults,                               // GameDefaultsPointer
-    "F14_SET.BIN",                                     // GameSettingsFileName
-    "F14_SCORE.BIN",                                   // HighScoresFileName
-    F14_AttractMode,                                   // AttractMode
-    F14_SolTimes};                                     // Default activation times of solenoids
+struct GameDef BC_GameDefinition = {
+    BC_setList,                                       // GameSettingsList
+    (byte*)BC_defaults,                               // GameDefaultsPointer
+    "BC_SET.BIN",                                     // GameSettingsFileName
+    "BC_SCORE.BIN",                                   // HighScoresFileName
+    BC_AttractMode,                                   // AttractMode
+    BC_SolTimes};                                     // Default activation times of solenoids
 
-void F14_init() {
+void BC_init() {
   if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
     Serial.begin(115200);}
-  GameDefinition = F14_GameDefinition;}                // read the game specific settings and highscores
+  GameDefinition = BC_GameDefinition;}                // read the game specific settings and highscores
 
-void F14_AttractMode() {                               // Attract Mode
+void BC_AttractMode() {                               // Attract Mode
   ACselectRelay = game_settings[BCset_ACselectRelay]; // assign the number of the A/C select relay
   if (ACselectRelay) {
-    F14_SolTimes[ACselectRelay-1] = 0;}                // allow A/C relay to be turned on permanently
+    BC_SolTimes[ACselectRelay-1] = 0;}                // allow A/C relay to be turned on permanently
   DispRow1 = DisplayUpper;
   DispRow2 = DisplayLower;
   digitalWrite(VolumePin,HIGH);                       // set volume to zero
   LampPattern = NoLamps;
-  Switch_Pressed = F14_AttractModeSW;
+  Switch_Pressed = BC_AttractModeSW;
   Switch_Released = DummyProcess;
   AppByte2 = 0;
-  LampReturn = F14_AttractLampCycle;
-  ActivateTimer(1000, 0, F14_AttractLampCycle);
-  F14_AttractDisplayCycle(0);}
+  LampReturn = BC_AttractLampCycle;
+  ActivateTimer(1000, 0, BC_AttractLampCycle);
+  BC_AttractDisplayCycle(0);}
 
-void F14_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
+void BC_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
   UNUSED(Event);
-  PatPointer = F14_AttractFlow[AppByte2].FlowPat;      // set the pointer to the current series
-  FlowRepeat = F14_AttractFlow[AppByte2].Repeat;       // set the repetitions
+  PatPointer = BC_AttractFlow[AppByte2].FlowPat;      // set the pointer to the current series
+  FlowRepeat = BC_AttractFlow[AppByte2].Repeat;       // set the repetitions
   AppByte2++;                                         // increase counter
-  if (!F14_AttractFlow[AppByte2].Repeat) {             // repetitions of next series = 0?
+  if (!BC_AttractFlow[AppByte2].Repeat) {             // repetitions of next series = 0?
     AppByte2 = 0;}                                    // reset counter
   ShowLampPatterns(1);}                               // call the player
 
-void F14_AttractDisplayCycle(byte Step) {
-  F14_CheckForLockedBalls(0);
+void BC_AttractDisplayCycle(byte Step) {
+  BC_CheckForLockedBalls(0);
   switch (Step) {
   case 0:
     WriteUpper2("APC BASE CODE   ");
@@ -248,15 +247,15 @@ void F14_AttractDisplayCycle(byte Step) {
     ActivateTimer(50, 0, ScrollUpper);
     ActivateTimer(900, 0, ScrollLower2);
     Step = 0;}
-  ActivateTimer(4000, Step, F14_AttractDisplayCycle);}
+  ActivateTimer(4000, Step, BC_AttractDisplayCycle);}
 
-void F14_AttractModeSW(byte Button) {                  // Attract Mode switch behaviour
+void BC_AttractModeSW(byte Button) {                  // Attract Mode switch behaviour
   switch (Button) {
   case 8:                                             // high score reset
     digitalWrite(Blanking, LOW);                      // invoke the blanking
     break;
   case 20:                                            // outhole
-    ActivateTimer(200, 0, F14_CheckForLockedBalls);    // check again in 200ms
+    ActivateTimer(200, 0, BC_CheckForLockedBalls);    // check again in 200ms
     break;
   case 72:                                            // Service Mode
     BlinkScore(0);                                    // stop score blinking
@@ -272,12 +271,12 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       WriteUpper("  TEST  MODE    ");
       WriteLower("                ");
       AppByte = 0;
-      ActivateTimer(1000, 0, F14_Testmode);}
+      ActivateTimer(1000, 0, BC_Testmode);}
     else {
       Settings_Enter();}
     break;
   case 3:                                             // start game
-    if (F14_CountBallsInTrunk() == game_settings[BCset_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[BCset_InstalledBalls]-1 && QuerySwitch(game_settings[BCset_PlungerLaneSwitch]))) { // Ball missing?
+    if (BC_CountBallsInTrunk() == game_settings[BCset_InstalledBalls] || (BC_CountBallsInTrunk() == game_settings[BCset_InstalledBalls]-1 && QuerySwitch(game_settings[BCset_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
       ShowLampPatterns(0);                            // stop lamp animations
       KillAllTimers();
@@ -292,7 +291,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       WriteUpper("                ");
       WriteLower("                ");
       Ball = 1;
-      F14_AddPlayer();
+      BC_AddPlayer();
       Player = 1;
       ExBalls = 0;
       Bonus = 1;
@@ -302,95 +301,95 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       for (i=1; i < 5; i++) {
         LockedBalls[i] = 0;
         Points[i] = 0;}
-      F14_NewBall(game_settings[BCset_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
+      BC_NewBall(game_settings[BCset_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
       ActivateSolenoid(0, 23);                        // enable flipper fingers
       ActivateSolenoid(0, 24);}}}
 
-void F14_AddPlayer() {
+void BC_AddPlayer() {
   if ((NoPlayers < 4) && (Ball == 1)) {               // if actual number of players < 4
     NoPlayers++;                                      // add a player
     Points[NoPlayers] = 0;                            // delete the points of the new player
     ShowPoints(NoPlayers);}}                          // and show them
 
-void F14_CheckForLockedBalls(byte Event) {             // check if balls are locked and release them
+void BC_CheckForLockedBalls(byte Event) {             // check if balls are locked and release them
   UNUSED(Event);
   if (QuerySwitch(game_settings[BCset_OutholeSwitch])) {                     // for the outhole
     ActA_BankSol(game_settings[BCset_OutholeKicker]);}
 }                                                     // add the locks of your game here
 
-void F14_NewBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
+void BC_NewBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
   ShowAllPoints(0);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
-  Switch_Released = F14_CheckShooterLaneSwitch;
+  Switch_Released = BC_CheckShooterLaneSwitch;
   if (!QuerySwitch(game_settings[BCset_PlungerLaneSwitch])) {
     ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);               // release ball
-    Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
-    CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
+    Switch_Pressed = BC_BallReleaseCheck;             // set switch check to enter game
+    CheckReleaseTimer = ActivateTimer(5000, Balls-1, BC_CheckReleasedBall);} // start release watchdog
   else {
-    Switch_Pressed = F14_ResetBallWatchdog;}}
+    Switch_Pressed = BC_ResetBallWatchdog;}}
 
-void F14_CheckShooterLaneSwitch(byte Switch) {
+void BC_CheckShooterLaneSwitch(byte Switch) {
   if (Switch == game_settings[BCset_PlungerLaneSwitch]) { // shooter lane switch released?
     Switch_Released = DummyProcess;
     if (!BallWatchdogTimer) {
-      BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}}}
+      BallWatchdogTimer = ActivateTimer(30000, 0, BC_SearchBall);}}}
 
-void F14_BallReleaseCheck(byte Switch) {               // handle switches during ball release
+void BC_BallReleaseCheck(byte Switch) {               // handle switches during ball release
   if (Switch > 15) {                                  // edit this to be true only for playfield switches
     if (CheckReleaseTimer) {
       KillTimer(CheckReleaseTimer);
       CheckReleaseTimer = 0;}                         // stop watchdog
-    Switch_Pressed = F14_ResetBallWatchdog;
+    Switch_Pressed = BC_ResetBallWatchdog;
     if (Switch == game_settings[BCset_PlungerLaneSwitch]) { // ball is in the shooter lane
-      Switch_Released = F14_CheckShooterLaneSwitch;}   // set mode to register when ball is shot
+      Switch_Released = BC_CheckShooterLaneSwitch;}   // set mode to register when ball is shot
     else {
       if (!BallWatchdogTimer) {
-        BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}}} // set switch mode to game
-  F14_GameMain(Switch);}                               // process current switch
+        BallWatchdogTimer = ActivateTimer(30000, 0, BC_SearchBall);}}} // set switch mode to game
+  BC_GameMain(Switch);}                               // process current switch
 
-void F14_ResetBallWatchdog(byte Switch) {              // handle switches during ball release
+void BC_ResetBallWatchdog(byte Switch) {              // handle switches during ball release
   if (Switch > 15) {                                  // edit this to be true only for playfield switches
     if (BallWatchdogTimer) {
       KillTimer(BallWatchdogTimer);}                  // stop watchdog
-    BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}
-  F14_GameMain(Switch);}                               // process current switch
+    BallWatchdogTimer = ActivateTimer(30000, 0, BC_SearchBall);}
+  BC_GameMain(Switch);}                               // process current switch
 
-void F14_SearchBall(byte Counter) {                    // ball watchdog timer has run out
+void BC_SearchBall(byte Counter) {                    // ball watchdog timer has run out
   BallWatchdogTimer = 0;
   if (QuerySwitch(game_settings[BCset_OutholeSwitch])) {
     BlockOuthole = false;
-    ActivateTimer(1000, 0, F14_ClearOuthole);}
+    ActivateTimer(1000, 0, BC_ClearOuthole);}
   else {
     if (QuerySwitch(game_settings[BCset_PlungerLaneSwitch])) { // if ball is waiting to be launched
-      BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}  // restart watchdog
+      BallWatchdogTimer = ActivateTimer(30000, 0, BC_SearchBall);}  // restart watchdog
     else {                                            // if ball is really missing
-      byte c = F14_CountBallsInTrunk();                // recount all balls
+      byte c = BC_CountBallsInTrunk();                // recount all balls
       if (c == game_settings[BCset_InstalledBalls]) { // found all balls in trunk?
         if (BlockOuthole) {                           // is the outhole blocked
-          F14_BallEnd(0);}                             // then it was probably a ball loss gone wrong
+          BC_BallEnd(0);}                             // then it was probably a ball loss gone wrong
         else {
-          ActivateTimer(1000, game_settings[BCset_InstalledBalls], F14_NewBall);}} // otherwise try it with a new ball
+          ActivateTimer(1000, game_settings[BCset_InstalledBalls], BC_NewBall);}} // otherwise try it with a new ball
       else {
         byte c2 = 0;                                  // counted balls in lock
                   // count balls in lock here with 5 being a warning when the switch states don't add up
         if (c == 5) {                                 // balls have not settled yet
           WriteUpper("  LOCK  STUCK   ");
-          BallWatchdogTimer = ActivateTimer(1000, 0, F14_SearchBall);} // and try again in 1s
+          BallWatchdogTimer = ActivateTimer(1000, 0, BC_SearchBall);} // and try again in 1s
         else {
           if (c2 > InLock) {                          // more locked balls found than expected?
-            F14_HandleLock(0);                         // lock them
-            BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}
+            BC_HandleLock(0);                         // lock them
+            BallWatchdogTimer = ActivateTimer(30000, 0, BC_SearchBall);}
           else {
             WriteUpper("  BALL  SEARCH  ");
-            ActivateSolenoid(0, F14_SearchCoils[Counter]); // fire coil to get ball free
+            ActivateSolenoid(0, BC_SearchCoils[Counter]); // fire coil to get ball free
             Counter++;
-            if (!F14_SearchCoils[Counter]) {           // all coils fired?
+            if (!BC_SearchCoils[Counter]) {           // all coils fired?
               Counter = 0;}                           // start again
-            BallWatchdogTimer = ActivateTimer(1000, Counter, F14_SearchBall);}}}}}} // come again in 1s if no switch is activated
+            BallWatchdogTimer = ActivateTimer(1000, Counter, BC_SearchBall);}}}}}} // come again in 1s if no switch is activated
 
-byte F14_CountBallsInTrunk() {
+byte BC_CountBallsInTrunk() {
   byte Balls = 0;
   for (i=0; i<game_settings[BCset_InstalledBalls]; i++) { // check how many balls are on the ball ramp
     if (QuerySwitch(game_settings[BCset_BallThroughSwitches+i])) {
@@ -399,7 +398,7 @@ byte F14_CountBallsInTrunk() {
       Balls++;}}
   return Balls;}
 
-void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
+void BC_CheckReleasedBall(byte Balls) {               // ball release watchdog
   CheckReleaseTimer = 0;
   BlinkScore(0);                                      // stop blinking to show messages
   WriteUpper("WAITINGFORBALL  ");                     // indicate a problem
@@ -410,7 +409,7 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
     ShowAllPoints(0);
     BlinkScore(1);
     ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);}
-  byte c = F14_CountBallsInTrunk();
+  byte c = BC_CountBallsInTrunk();
   if (c == Balls) {                                   // expected number of balls in trunk
     WriteUpper("  BALL MISSING  ");
     if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // outhole switch still active?
@@ -426,9 +425,9 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
         ShowAllPoints(0);
         BlinkScore(1);
         ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);}}} // release again
-  CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
+  CheckReleaseTimer = ActivateTimer(5000, Balls, BC_CheckReleasedBall);}
 
-void F14_GameMain(byte Event) {                        // game switch events
+void BC_GameMain(byte Event) {                        // game switch events
   switch (Event) {
   case 1:                                             // plumb bolt tilt
   case 2:                                             // ball roll tilt
@@ -439,29 +438,29 @@ void F14_GameMain(byte Event) {                        // game switch events
     ActivateTimer(3000, 0, ShowAllPoints);
     break;
   case 3:                                             // credit button
-    F14_AddPlayer();
+    BC_AddPlayer();
     break;
   default:
     if (Event == game_settings[BCset_OutholeSwitch]) {
-      ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
+      ActivateTimer(200, 0, BC_ClearOuthole);}        // check again in 200ms
   }}
 
-void F14_ClearOuthole(byte Event) {
+void BC_ClearOuthole(byte Event) {
   UNUSED(Event);
   if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // outhole switch still active?
     if (!BlockOuthole && !C_BankActive) {             // outhole blocked?
       BlockOuthole = true;                            // block outhole until this ball has been processed
       ActivateSolenoid(30, game_settings[BCset_OutholeKicker]); // put ball in trunk
-      ActivateTimer(2000, 0, F14_BallEnd);}
+      ActivateTimer(2000, 0, BC_BallEnd);}
     else {
-      ActivateTimer(2000, 0, F14_ClearOuthole);}}}     // come back in 2s if outhole is blocked
+      ActivateTimer(2000, 0, BC_ClearOuthole);}}}     // come back in 2s if outhole is blocked
 
-void F14_HandleLock(byte Balls) {
+void BC_HandleLock(byte Balls) {
       // do something with your lock
 }
 
-void F14_BallEnd(byte Event) {
-  byte BallsInTrunk = F14_CountBallsInTrunk();
+void BC_BallEnd(byte Event) {
+  byte BallsInTrunk = BC_CountBallsInTrunk();
   if ((BallsInTrunk == 5)||(BallsInTrunk < game_settings[BCset_InstalledBalls]+1-Multiballs-InLock)) {
     InLock = 0;
 //    if (Multiballs == 1) {
@@ -471,28 +470,28 @@ void F14_BallEnd(byte Event) {
     WriteLower(" BALL   ERROR   ");
     if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // ball still in outhole?
       ActA_BankSol(game_settings[BCset_OutholeKicker]); // make the coil a bit stronger
-      ActivateTimer(2000, Event, F14_BallEnd);}        // and come back in 2s
+      ActivateTimer(2000, Event, BC_BallEnd);}        // and come back in 2s
     else {
       if (Event < 11) {                               // have I been here already?
         Event++;
-        ActivateTimer(1000, Event, F14_BallEnd);}      // if not try again in 1s
+        ActivateTimer(1000, Event, BC_BallEnd);}      // if not try again in 1s
       else {                                          // ball may be still in outhole
         BlockOuthole = false;
         Event = 0;
-        F14_ClearOuthole(0);}}}
+        BC_ClearOuthole(0);}}}
   else {
     switch (Multiballs) {
     case 3:                                           // goto 2 ball multiball
       Multiballs = 2;
       if (BallsInTrunk != 1) {                        // not 1 ball in trunk
-        ActivateTimer(1000, 0, F14_BallEnd);}          // check again later
+        ActivateTimer(1000, 0, BC_BallEnd);}          // check again later
       else {
         BlockOuthole = false;}                        // remove outhole block
       break;
     case 2:                                           // end multiball
       Multiballs = 1;
       if (BallsInTrunk == game_settings[BCset_InstalledBalls]) { // all balls in trunk?
-        ActivateTimer(1000, 0, F14_BallEnd);}
+        ActivateTimer(1000, 0, BC_BallEnd);}
       else {
         BlockOuthole = false;}                        // remove outhole block
       break;
@@ -503,45 +502,45 @@ void F14_BallEnd(byte Event) {
 //        for (i=0; i<3; i++) {                       // check how many balls are on the ball ramp
 //          if (Switch[41+i]) {
 //            InLock++;}}
-        ActivateTimer(1000, 0, F14_BallEnd);}
+        ActivateTimer(1000, 0, BC_BallEnd);}
       else {
         LockedBalls[Player] = 0;
         BlinkScore(0);                                // stop score blinking
-        F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
+        BC_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
       }}}}
 
-void F14_BallEnd2(byte Balls) {
+void BC_BallEnd2(byte Balls) {
   if (BallWatchdogTimer) {
     KillTimer(BallWatchdogTimer);
     BallWatchdogTimer = 0;}
   if (ExBalls) {                                      // Player has extra balls
     ExBalls--;
-    ActivateTimer(1000, AppByte, F14_NewBall);
+    ActivateTimer(1000, AppByte, BC_NewBall);
     BlockOuthole = false;}                            // remove outhole block
   else {                                              // Player has no extra balls
     if ((Points[Player] > HallOfFame.Scores[3]) && (Ball == APC_settings[NofBalls])) { // last ball & high score?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
-      F14_CheckHighScore(Player);}
+      BC_CheckHighScore(Player);}
     else {
-      F14_BallEnd3(Balls);}}}
+      BC_BallEnd3(Balls);}}}
 
-void F14_BallEnd3(byte Balls) {
+void BC_BallEnd3(byte Balls) {
   BlockOuthole = false;                               // remove outhole block
   if (Player < NoPlayers) {                           // last player?
     Player++;
-    ActivateTimer(1000, Balls, F14_NewBall);}
+    ActivateTimer(1000, Balls, BC_NewBall);}
   else {
     if (Ball < APC_settings[NofBalls]) {
       Player = 1;
       Ball++;
-      ActivateTimer(1000, Balls, F14_NewBall);}
+      ActivateTimer(1000, Balls, BC_NewBall);}
     else {                                            // game end
       ReleaseSolenoid(23);                            // disable flipper fingers
       ReleaseSolenoid(24);
-      F14_CheckForLockedBalls(0);
+      BC_CheckForLockedBalls(0);
       GameDefinition.AttractMode();}}}
 
-void F14_ResetHighScores(bool change) {                // delete the high scores file
+void BC_ResetHighScores(bool change) {                // delete the high scores file
   if (change) {                                       // if the start button has been pressed
     if (SDfound) {
       SD.remove(GameDefinition.HighScoresFileName);
@@ -553,14 +552,14 @@ void F14_ResetHighScores(bool change) {                // delete the high scores
   else {
     WriteLower(" SCORES         ");}}
 
-void F14_CheckHighScore(byte Player) {
+void BC_CheckHighScore(byte Player) {
 
 }
 
 // Test mode
 
-void F14_Testmode(byte Select) {
-  Switch_Pressed = F14_Testmode;
+void BC_Testmode(byte Select) {
+  Switch_Pressed = BC_Testmode;
   switch(AppByte) {                                   // which testmode?
   case 0:                                             // display test
     switch(Select) {                                  // switch events
@@ -583,11 +582,11 @@ void F14_Testmode(byte Select) {
       if (APC_settings[DisplayType] < 6) {            // Sys11 display
         WriteUpper("0000000000000000");
         WriteLower("0000000000000000");
-        AppByte2 = ActivateTimer(1000, 32, F14_DisplayCycle);}
+        AppByte2 = ActivateTimer(1000, 32, BC_DisplayCycle);}
       else {
         for(byte c=0; c<16; c++) {                    // clear numerical displays
           *(DisplayLower+2*c) = 0;}                   // delete numbers
-        AppByte2 = ActivateTimer(1000, 0, F14_DisplayCycle);}
+        AppByte2 = ActivateTimer(1000, 0, BC_DisplayCycle);}
       break;
     case 72:                                          // advance button
       if (AppByte2) {
@@ -595,7 +594,7 @@ void F14_Testmode(byte Select) {
         AppByte2 = 0;}
       else {
         AppByte++;}
-      F14_Testmode(0);}
+      BC_Testmode(0);}
     break;
     case 1:                                           // switch edges test
       switch(Select) {                                // switch events
@@ -615,7 +614,7 @@ void F14_Testmode(byte Select) {
           AppByte2 = 0;}
         else {
           AppByte++;}
-        F14_Testmode(0);
+        BC_Testmode(0);
         break;
       case 3:                                         // credit button
         if (!AppByte2) {
@@ -658,7 +657,7 @@ void F14_Testmode(byte Select) {
         case 3:
           WriteUpper(" FIRINGCOIL NO  ");
           AppBool = false;
-          AppByte2 = ActivateTimer(1000, 1, F14_FireSolenoids);
+          AppByte2 = ActivateTimer(1000, 1, BC_FireSolenoids);
           break;
         case 72:
           if (AppByte2) {
@@ -666,7 +665,7 @@ void F14_Testmode(byte Select) {
             AppByte2 = 0;}
           else {
             AppByte++;}
-          F14_Testmode(0);}
+          BC_Testmode(0);}
         break;
         case 3:                                           // single lamp test
           switch(Select) {                                // switch events
@@ -686,7 +685,7 @@ void F14_Testmode(byte Select) {
             break;
           case 3:
             WriteUpper(" ACTUAL LAMP    ");
-            AppByte2 = ActivateTimer(1000, 1, F14_ShowLamp);
+            AppByte2 = ActivateTimer(1000, 1, BC_ShowLamp);
             break;
           case 72:
             LampPattern = NoLamps;
@@ -695,7 +694,7 @@ void F14_Testmode(byte Select) {
               AppByte2 = 0;}
             else {
               AppByte++;}
-            F14_Testmode(0);}
+            BC_Testmode(0);}
           break;
           case 4:                                           // all lamps test
             switch(Select) {                                // switch events
@@ -712,7 +711,7 @@ void F14_Testmode(byte Select) {
               break;
             case 3:
               WriteUpper("FLASHNG LAMPS   ");
-              AppByte2 = ActivateTimer(1000, 1, F14_ShowAllLamps);
+              AppByte2 = ActivateTimer(1000, 1, BC_ShowAllLamps);
               break;
             case 72:
               LampPattern = NoLamps;
@@ -721,7 +720,7 @@ void F14_Testmode(byte Select) {
                 AppByte2 = 0;}
               else {
                 AppByte++;}
-              F14_Testmode(0);}
+              BC_Testmode(0);}
             break;
             case 5:                                           // all music test
               switch(Select) {                                // switch events
@@ -740,7 +739,7 @@ void F14_Testmode(byte Select) {
                 WriteUpper("PLAYING MUSIC   ");
                 if (APC_settings[Volume]) {                   // system set to digital volume control?
                   analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
-                AfterMusic = F14_RepeatMusic;
+                AfterMusic = BC_RepeatMusic;
                 AppByte2 = 1;
                 PlayMusic(50, "MUSIC.BIN");
                 break;
@@ -753,10 +752,10 @@ void F14_Testmode(byte Select) {
                 else {
                   GameDefinition.AttractMode();
                   return;}
-                F14_Testmode(0);}
+                BC_Testmode(0);}
               break;}}
 
-void F14_ShowLamp(byte CurrentLamp) {                  // cycle all solenoids
+void BC_ShowLamp(byte CurrentLamp) {                  // cycle all solenoids
   if (QuerySwitch(73)) {                              // Up/Down switch pressed?
     if (APC_settings[DisplayType] == 6) {             // Sys6 display?
       *(DisplayLower+24) = ConvertNumLower((byte) CurrentLamp / 10, 0); // and insert the switch number to the right of the row
@@ -777,9 +776,9 @@ void F14_ShowLamp(byte CurrentLamp) {                  // cycle all solenoids
     CurrentLamp++;                                    // increase the lamp counter
     if (CurrentLamp == LampMax+1) {                   // maximum reached?
       CurrentLamp = 1;}}                              // then start again
-  AppByte2 = ActivateTimer(1000, CurrentLamp, F14_ShowLamp);} // come back in one second
+  AppByte2 = ActivateTimer(1000, CurrentLamp, BC_ShowLamp);} // come back in one second
 
-void F14_ShowAllLamps(byte State) {                    // Flash all lamps
+void BC_ShowAllLamps(byte State) {                    // Flash all lamps
   if (State) {                                        // if all lamps are on
     LampColumns[0] = 0;                               // first column
     LampPattern = NoLamps;                            // turn them off
@@ -788,9 +787,9 @@ void F14_ShowAllLamps(byte State) {                    // Flash all lamps
     LampColumns[0] = 255;                             // first column
     LampPattern = AllLamps;
     State = 1;}
-  AppByte2 = ActivateTimer(500, State, F14_ShowAllLamps);}  // come back in 500ms
+  AppByte2 = ActivateTimer(500, State, BC_ShowAllLamps);}  // come back in 500ms
 
-void F14_FireSolenoids(byte Solenoid) {                // cycle all solenoids
+void BC_FireSolenoids(byte Solenoid) {                // cycle all solenoids
   if (AppBool) {                                      // if C bank solenoid
     ActC_BankSol(Solenoid);
     *(DisplayLower+30) = DispPattern2[('C'-32)*2];    // show the C
@@ -827,9 +826,9 @@ void F14_FireSolenoids(byte Solenoid) {                // cycle all solenoids
         Solenoid++;                                   // increase the solenoid counter
         if (Solenoid > 22) {                          // maximum reached?
           Solenoid = 1;}}}}                           // then start again
-  AppByte2 = ActivateTimer(1000, Solenoid, F14_FireSolenoids);}   // come back in one second
+  AppByte2 = ActivateTimer(1000, Solenoid, BC_FireSolenoids);}   // come back in one second
 
-void F14_DisplayCycle(byte CharNo) {                   // Display cycle test
+void BC_DisplayCycle(byte CharNo) {                   // Display cycle test
   if (QuerySwitch(73)) {                              // cycle only if Up/Down switch is not pressed
     if (CharNo < 11) {                                // numerical display
       CharNo++;
@@ -866,8 +865,8 @@ void F14_DisplayCycle(byte CharNo) {                   // Display cycle test
           else {
             DisplayLower[2*i] = DispPattern2[CharNo];
             DisplayLower[2*i+1] = DispPattern2[CharNo+1];}}}}}
-  AppByte2 = ActivateTimer(500, CharNo, F14_DisplayCycle);}   // restart timer
+  AppByte2 = ActivateTimer(500, CharNo, BC_DisplayCycle);}   // restart timer
 
-void F14_RepeatMusic(byte Dummy) {
+void BC_RepeatMusic(byte Dummy) {
   UNUSED(Dummy);
   PlayMusic(50, "MUSIC.BIN");}
