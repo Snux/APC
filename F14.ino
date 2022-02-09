@@ -203,7 +203,7 @@ void F14_AttractDisplayCycle(byte Step) {
   F14_CheckForLockedBalls(0);
   switch (Step) {
   case 0:
-    WriteUpper2("APC BASE CODE   ");
+    WriteUpper2("  F14  TOMCAT   ");
     ActivateTimer(50, 0, ScrollUpper);
     WriteLower2("                ");
     ActivateTimer(1000, 0, ScrollLower2);
@@ -441,10 +441,17 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 3:                                             // credit button
     F14_AddPlayer();
     break;
+  case 21:                                            //right eject
+    ActivateTimer(200, 0, F14_ClearRightEject);
+    break;
   default:
     if (Event == game_settings[BCset_OutholeSwitch]) {
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
+
+void F14_ClearRightEject(byte Event) {
+  ActivateSolenoid(0, 7);
+}
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
@@ -870,4 +877,5 @@ void F14_DisplayCycle(byte CharNo) {                   // Display cycle test
 
 void F14_RepeatMusic(byte Dummy) {
   UNUSED(Dummy);
-  PlayMusic(50, "MUSIC.BIN");}
+  //PlayMusic(50, "MUSIC.BIN");
+  }
