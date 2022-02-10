@@ -1,5 +1,7 @@
 // Base Code for APC based pinball machines - change all F14_ prefixes and the following parameters to match your game
 
+byte F14_Tomcat_Targets[5][11]; 
+
 const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
 const byte F14_BallThroughSwitches[4] = {11,12,13,14};    // ball through switches from the plunger lane to the outhole
 const byte F14_PlungerLaneSwitch = 16;
