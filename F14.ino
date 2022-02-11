@@ -12,13 +12,13 @@ const byte F14_InstalledBalls = 4;                     // number of balls instal
 const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
 unsigned int F14_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
 
-#define BCset_OutholeSwitch 0
-#define BCset_BallThroughSwitches 1
-#define BCset_PlungerLaneSwitch 5
-#define BCset_ACselectRelay 6
-#define BCset_OutholeKicker 7
-#define BCset_ShooterLaneFeeder 8
-#define BCset_InstalledBalls 9
+#define F14set_OutholeSwitch 0
+#define F14set_BallThroughSwitches 1
+#define F14set_PlungerLaneSwitch 5
+#define F14set_ACselectRelay 6
+#define F14set_OutholeKicker 7
+#define F14set_ShooterLaneFeeder 8
+#define F14set_InstalledBalls 9
 
 const byte F14_defaults[64] = {10,11,12,13,14,16,14,1,        // game default settings
                               2,4,0,0,0,0,0,0,
@@ -178,7 +178,7 @@ void F14_init() {
   GameDefinition = F14_GameDefinition;}                // read the game specific settings and highscores
 
 void F14_AttractMode() {                               // Attract Mode
-  ACselectRelay = game_settings[BCset_ACselectRelay]; // assign the number of the A/C select relay
+  ACselectRelay = game_settings[F14set_ACselectRelay]; // assign the number of the A/C select relay
   if (ACselectRelay) {
     F14_SolTimes[ACselectRelay-1] = 0;}                // allow A/C relay to be turned on permanently
   DispRow1 = DisplayUpper;
@@ -279,7 +279,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       Settings_Enter();}
     break;
   case 3:                                             // start game
-    if (F14_CountBallsInTrunk() == game_settings[BCset_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[BCset_InstalledBalls]-1 && QuerySwitch(game_settings[BCset_PlungerLaneSwitch]))) { // Ball missing?
+    if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
       ShowLampPatterns(0);                            // stop lamp animations
       KillAllTimers();
@@ -304,7 +304,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       for (i=1; i < 5; i++) {
         LockedBalls[i] = 0;
         Points[i] = 0;}
-      F14_NewBall(game_settings[BCset_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
+      F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
       ActivateSolenoid(0, 23);                        // enable flipper fingers
       ActivateSolenoid(0, 24);}}}
 
@@ -316,8 +316,8 @@ void F14_AddPlayer() {
 
 void F14_CheckForLockedBalls(byte Event) {             // check if balls are locked and release them
   UNUSED(Event);
-  if (QuerySwitch(game_settings[BCset_OutholeSwitch])) {                     // for the outhole
-    ActA_BankSol(game_settings[BCset_OutholeKicker]);}
+  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) {                     // for the outhole
+    ActA_BankSol(game_settings[F14set_OutholeKicker]);}
 }                                                     // add the locks of your game here
 
 void F14_NewBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
@@ -326,15 +326,15 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
   Switch_Released = F14_CheckShooterLaneSwitch;
-  if (!QuerySwitch(game_settings[BCset_PlungerLaneSwitch])) {
-    ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);               // release ball
+  if (!QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) {
+    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);               // release ball
     Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
     CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
   else {
     Switch_Pressed = F14_ResetBallWatchdog;}}
 
 void F14_CheckShooterLaneSwitch(byte Switch) {
-  if (Switch == game_settings[BCset_PlungerLaneSwitch]) { // shooter lane switch released?
+  if (Switch == game_settings[F14set_PlungerLaneSwitch]) { // shooter lane switch released?
     Switch_Released = DummyProcess;
     if (!BallWatchdogTimer) {
       BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}}}
@@ -345,7 +345,7 @@ void F14_BallReleaseCheck(byte Switch) {               // handle switches during
       KillTimer(CheckReleaseTimer);
       CheckReleaseTimer = 0;}                         // stop watchdog
     Switch_Pressed = F14_ResetBallWatchdog;
-    if (Switch == game_settings[BCset_PlungerLaneSwitch]) { // ball is in the shooter lane
+    if (Switch == game_settings[F14set_PlungerLaneSwitch]) { // ball is in the shooter lane
       Switch_Released = F14_CheckShooterLaneSwitch;}   // set mode to register when ball is shot
     else {
       if (!BallWatchdogTimer) {
@@ -361,19 +361,19 @@ void F14_ResetBallWatchdog(byte Switch) {              // handle switches during
 
 void F14_SearchBall(byte Counter) {                    // ball watchdog timer has run out
   BallWatchdogTimer = 0;
-  if (QuerySwitch(game_settings[BCset_OutholeSwitch])) {
+  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) {
     BlockOuthole = false;
     ActivateTimer(1000, 0, F14_ClearOuthole);}
   else {
-    if (QuerySwitch(game_settings[BCset_PlungerLaneSwitch])) { // if ball is waiting to be launched
+    if (QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) { // if ball is waiting to be launched
       BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}  // restart watchdog
     else {                                            // if ball is really missing
       byte c = F14_CountBallsInTrunk();                // recount all balls
-      if (c == game_settings[BCset_InstalledBalls]) { // found all balls in trunk?
+      if (c == game_settings[F14set_InstalledBalls]) { // found all balls in trunk?
         if (BlockOuthole) {                           // is the outhole blocked
           F14_BallEnd(0);}                             // then it was probably a ball loss gone wrong
         else {
-          ActivateTimer(1000, game_settings[BCset_InstalledBalls], F14_NewBall);}} // otherwise try it with a new ball
+          ActivateTimer(1000, game_settings[F14set_InstalledBalls], F14_NewBall);}} // otherwise try it with a new ball
       else {
         byte c2 = 0;                                  // counted balls in lock
                   // count balls in lock here with 5 being a warning when the switch states don't add up
@@ -394,8 +394,8 @@ void F14_SearchBall(byte Counter) {                    // ball watchdog timer ha
 
 byte F14_CountBallsInTrunk() {
   byte Balls = 0;
-  for (i=0; i<game_settings[BCset_InstalledBalls]; i++) { // check how many balls are on the ball ramp
-    if (QuerySwitch(game_settings[BCset_BallThroughSwitches+i])) {
+  for (i=0; i<game_settings[F14set_InstalledBalls]; i++) { // check how many balls are on the ball ramp
+    if (QuerySwitch(game_settings[F14set_BallThroughSwitches+i])) {
       if (Balls < i) {
         return 5;}                                    // send warning
       Balls++;}}
@@ -411,12 +411,12 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
     WriteLower("                ");
     ShowAllPoints(0);
     BlinkScore(1);
-    ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);}
+    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}
   byte c = F14_CountBallsInTrunk();
   if (c == Balls) {                                   // expected number of balls in trunk
     WriteUpper("  BALL MISSING  ");
-    if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // outhole switch still active?
-      ActA_BankSol(game_settings[BCset_OutholeKicker]);}}  // shove the ball into the trunk
+    if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // outhole switch still active?
+      ActA_BankSol(game_settings[F14set_OutholeKicker]);}}  // shove the ball into the trunk
   else {                                              //
     if (c == 5) {                                     // balls not settled
       WriteLower(" TRUNK  ERROR   ");
@@ -427,7 +427,7 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
         WriteLower("                ");
         ShowAllPoints(0);
         BlinkScore(1);
-        ActA_BankSol(game_settings[BCset_ShooterLaneFeeder]);}}} // release again
+        ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}}} // release again
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
 void F14_GameMain(byte Event) {                        // game switch events
@@ -447,7 +447,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     ActivateTimer(200, 0, F14_ClearRightEject);
     break;
   default:
-    if (Event == game_settings[BCset_OutholeSwitch]) {
+    if (Event == game_settings[F14set_OutholeSwitch]) {
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
 
@@ -457,10 +457,10 @@ void F14_ClearRightEject(byte Event) {
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
-  if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // outhole switch still active?
+  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // outhole switch still active?
     if (!BlockOuthole && !C_BankActive) {             // outhole blocked?
       BlockOuthole = true;                            // block outhole until this ball has been processed
-      ActivateSolenoid(30, game_settings[BCset_OutholeKicker]); // put ball in trunk
+      ActivateSolenoid(30, game_settings[F14set_OutholeKicker]); // put ball in trunk
       ActivateTimer(2000, 0, F14_BallEnd);}
     else {
       ActivateTimer(2000, 0, F14_ClearOuthole);}}}     // come back in 2s if outhole is blocked
@@ -471,15 +471,15 @@ void F14_HandleLock(byte Balls) {
 
 void F14_BallEnd(byte Event) {
   byte BallsInTrunk = F14_CountBallsInTrunk();
-  if ((BallsInTrunk == 5)||(BallsInTrunk < game_settings[BCset_InstalledBalls]+1-Multiballs-InLock)) {
+  if ((BallsInTrunk == 5)||(BallsInTrunk < game_settings[F14set_InstalledBalls]+1-Multiballs-InLock)) {
     InLock = 0;
 //    if (Multiballs == 1) {
 //      for (i=0; i<3; i++) {                           // Count your locked balls here
 //        if (Switch[41+i]) {
 //          InLock++;}}}
     WriteLower(" BALL   ERROR   ");
-    if (QuerySwitch(game_settings[BCset_OutholeSwitch])) { // ball still in outhole?
-      ActA_BankSol(game_settings[BCset_OutholeKicker]); // make the coil a bit stronger
+    if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // ball still in outhole?
+      ActA_BankSol(game_settings[F14set_OutholeKicker]); // make the coil a bit stronger
       ActivateTimer(2000, Event, F14_BallEnd);}        // and come back in 2s
     else {
       if (Event < 11) {                               // have I been here already?
@@ -500,13 +500,13 @@ void F14_BallEnd(byte Event) {
       break;
     case 2:                                           // end multiball
       Multiballs = 1;
-      if (BallsInTrunk == game_settings[BCset_InstalledBalls]) { // all balls in trunk?
+      if (BallsInTrunk == game_settings[F14set_InstalledBalls]) { // all balls in trunk?
         ActivateTimer(1000, 0, F14_BallEnd);}
       else {
         BlockOuthole = false;}                        // remove outhole block
       break;
     case 1:                                           // end of ball
-      if (BallsInTrunk + InLock != game_settings[BCset_InstalledBalls]) {
+      if (BallsInTrunk + InLock != game_settings[F14set_InstalledBalls]) {
         WriteUpper(" COUNT  ERROR   ");
         InLock = 0;
 //        for (i=0; i<3; i++) {                       // check how many balls are on the ball ramp
@@ -823,7 +823,7 @@ void F14_FireSolenoids(byte Solenoid) {                // cycle all solenoids
       ActivateSolenoid(500, Solenoid);}               // then the duration must be specified
     else {
       ActivateSolenoid(0, Solenoid);}                 // activate the solenoid with default duration
-    if ((Solenoid < 9) && game_settings[BCset_ACselectRelay]) { // A solenoid and Sys11 machine?
+    if ((Solenoid < 9) && game_settings[F14set_ACselectRelay]) { // A solenoid and Sys11 machine?
       *(DisplayLower+30) = DispPattern2[('A'-32)*2];  // show the A
       *(DisplayLower+31) = DispPattern2[('A'-32)*2+1];
       if (QuerySwitch(73)) {                          // Up/Down switch pressed?
