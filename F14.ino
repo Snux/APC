@@ -180,7 +180,8 @@ struct GameDef F14_GameDefinition = {
 void F14_init() {
   if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
     Serial.begin(115200);}
-  GameDefinition = F14_GameDefinition;}                // read the game specific settings and highscores
+  GameDefinition = F14_GameDefinition;                // read the game specific settings and highscores
+  F14_GIOn(0);}                                        //switch on the gi
 
 void F14_AttractMode() {                               // Attract Mode
   ACselectRelay = game_settings[F14set_ACselectRelay]; // assign the number of the A/C select relay
@@ -544,6 +545,14 @@ void F14_LeftEjectHandler(byte Event) {
       break;
     
   }
+}
+
+void F14_GIOn(byte Colour) {  // Colour not used at the moment
+  for (int i=65; i < 102; i++) {TurnOnLamp(i);}
+}
+
+void F14_GIOff() {
+  for (int i=65; i < 102; i++) {TurnOffLamp(i);}
 }
 
 
