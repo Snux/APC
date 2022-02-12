@@ -362,19 +362,19 @@ void Init_System() {
 void Init_System2(byte State) {                       // state = 0 will restore the settings if no card is found
   switch(APC_settings[ActiveGame]) {                  // init calls for all valid games
   case 0:
-    BC_init();
+    //BC_init();
     break;
   case 1:
-    BK_init();
+    //BK_init();
     break;
   case 2:
-    PB_init();
+    //PB_init();
     break;
   case 3:
     USB_init();
     break;
   case 4:
-    TT_init();
+    //TT_init();
     break;
   case 5:
     F14_init();
