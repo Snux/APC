@@ -1,6 +1,11 @@
-// Base Code for APC based pinball machines - change all F14_ prefixes and the following parameters to match your game
+// F14 Tomcat - APC code to play original WMS game
 
-byte F14_Tomcat_Targets[5][11]; 
+byte F14_TomcatTargets[5][11]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
+byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
+byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
+byte F14_Bonus;
+byte F14_BonusMultiplier;
+
 
 const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
 const byte F14_BallThroughSwitches[4] = {11,12,13,14};    // ball through switches from the plunger lane to the outhole
@@ -256,10 +261,27 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
   switch (Button) {
   case 8:                                             // high score reset
     digitalWrite(Blanking, LOW);                      // invoke the blanking
+    rstc_start_software_reset(RSTC); //call reset
     break;
   case 20:                                            // outhole
     ActivateTimer(200, 0, F14_CheckForLockedBalls);    // check again in 200ms
     break;
+  // In attract mode, the ejects and vUK shouldn't have a ball in.  But if the previous
+  // game was switched off mid way through, it's possible.  If we find something there,
+  // just call the handler for a simple eject
+  case 21:                                            //right eject
+    ActivateTimer(200, 0, F14_RightEjectHandler);
+    break;  
+  case 22:                                            //left
+    ActivateTimer(200, 0, F14_LeftEjectHandler);
+    break;  
+  case 23:                                            //centre
+    ActivateTimer(200, 0, F14_CentreEjectHandler);
+    break;  
+  case 24:    //vuk
+    ActivateTimer(200, 0, F14_vUKHandler);
+    break;
+
   case 72:                                            // Service Mode
     BlinkScore(0);                                    // stop score blinking
     ShowLampPatterns(0);                              // stop lamp animations
@@ -306,7 +328,11 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
         Points[i] = 0;}
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
       ActivateSolenoid(0, 23);                        // enable flipper fingers
-      ActivateSolenoid(0, 24);}}}
+      ActivateSolenoid(0, 24);}
+    else {
+      //F14_SearchBall(0);    // This did some strange things
+    }
+    }}
 
 void F14_AddPlayer() {
   if ((NoPlayers < 4) && (Ball == 1)) {               // if actual number of players < 4
@@ -444,16 +470,82 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_AddPlayer();
     break;
   case 21:                                            //right eject
-    ActivateTimer(200, 0, F14_ClearRightEject);
+    ActivateTimer(200, 0, F14_RightEjectHandler);
+    break;  
+  case 22:                                            //left
+    ActivateTimer(200, 0, F14_LeftEjectHandler);
+    break;  
+  case 23:                                            //centre
+    ActivateTimer(200, 0, F14_CentreEjectHandler);
+    break;  
+  case 24:    //vuk
+    ActivateTimer(200, 0, F14_vUKHandler);
+    break;
+  case 65: // left slingshot
+    ActivateSolenoid(0, 17);
+    break;
+  case 66: // right slingshot
+    ActivateSolenoid(0, 18);
+    break;
+  case 68: // pop bumper
+    ActivateSolenoid(0, 20);
     break;
   default:
     if (Event == game_settings[F14set_OutholeSwitch]) {
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
 
-void F14_ClearRightEject(byte Event) {
-  ActivateSolenoid(0, 7);
+
+// This handles various things for the vUK (popper top right)
+// The incoming event will specify what the routine is being called for
+// 0 = simply eject
+void F14_vUKHandler(byte Event) {
+  switch (Event) {
+    case 0:             // will need expanding when lock logic coded
+      ActA_BankSol(3);
+      break;
+    
+  }
 }
+
+// This handles various things for the right eject (the one under the shooter lane)
+// The incoming event will specify what the routine is being called for
+// 0 = simply eject
+
+
+void F14_RightEjectHandler(byte Event) {
+  switch (Event) {
+    case 0:             // will need expanding when lock logic coded
+      ActA_BankSol(7);
+      break;
+    
+  }
+}
+
+// This handles various things for the centre eject (the one under the shooter lane)
+// The incoming event will specify what the routine is being called for
+// 0 = simply eject
+void F14_CentreEjectHandler(byte Event) {
+  switch (Event) {
+    case 0:             // will need expanding when lock logic coded
+      ActA_BankSol(5);
+      break;
+    
+  }
+}
+
+// This handles various things for the left eject (the one under the shooter lane)
+// The incoming event will specify what the routine is being called for
+// 0 = simply eject
+void F14_LeftEjectHandler(byte Event) {
+  switch (Event) {
+    case 0:             // will need expanding when lock logic coded
+      ActivateSolenoid(0, 10);
+      break;
+    
+  }
+}
+
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
