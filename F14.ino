@@ -1,6 +1,7 @@
 // F14 Tomcat - APC code to play original WMS game
 
-byte F14_TomcatTargets[5][11]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
+byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
+const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
 byte F14_Bonus;
@@ -16,6 +17,7 @@ const byte F14_ShooterLaneFeeder = 2;                  // solenoid number of the
 const byte F14_InstalledBalls = 4;                     // number of balls installed in the game
 const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
 unsigned int F14_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
+
 
 #define F14set_OutholeSwitch 0
 #define F14set_BallThroughSwitches 1
@@ -179,7 +181,8 @@ struct GameDef F14_GameDefinition = {
 
 void F14_init() {
   if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
-    Serial.begin(115200);}
+    Serial.begin(115200);
+    Serial.println("Debug on");}
   GameDefinition = F14_GameDefinition;                // read the game specific settings and highscores
   F14_GIOn(0);}                                        //switch on the gi
 
@@ -259,6 +262,10 @@ void F14_AttractDisplayCycle(byte Step) {
   ActivateTimer(4000, Step, F14_AttractDisplayCycle);}
 
 void F14_AttractModeSW(byte Button) {                  // Attract Mode switch behaviour
+  if (APC_settings[DebugMode]){
+    Serial.print("Attract mode switch = ");            // print address reference table
+    Serial.println((byte)Button);
+  }
   switch (Button) {
   case 8:                                             // high score reset
     digitalWrite(Blanking, LOW);                      // invoke the blanking
@@ -326,14 +333,34 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       Multiballs = 1;
       for (i=1; i < 5; i++) {
         LockedBalls[i] = 0;
-        Points[i] = 0;}
+        Points[i] = 0;
+        F14_Kills[i]=0;  // How many kills (Alpha -> Golf) has the player made
+        for (byte j=0; j<3; j++) {
+          F14_LockStatus[i][j]=0;} // status of locks for each player.  0 not active, 1 is lit, 2 is locked
+        for (byte j=0; j<12; j++) {
+          F14_TomcatTargets[i][j]=0;}
+        }
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
+      F14_TomcatTargetLamps();
       ActivateSolenoid(0, 23);                        // enable flipper fingers
       ActivateSolenoid(0, 24);}
-    else {
-      //F14_SearchBall(0);    // This did some strange things
-    }
+
     }}
+
+// Update the T-O-M-C-A-T lamps based on the status of the shots
+void F14_TomcatTargetLamps() {
+  
+  for (byte i=0; i<12; i++) {
+    // Turn off lamps and blinkers
+    RemoveBlinkLamp(F14TomcatTargetLampNumbers[i]);
+    TurnOffLamp(F14TomcatTargetLampNumbers[i]);
+    // Set them to blink on status 0 (not hit) or on for 1 (hit)
+    switch (F14_TomcatTargets[Player][i]) {
+      case 0: AddBlinkLamp(F14TomcatTargetLampNumbers[i],100);
+      case 1: TurnOnLamp(F14TomcatTargetLampNumbers[i]);
+    }
+  }
+}
 
 void F14_AddPlayer() {
   if ((NoPlayers < 4) && (Ball == 1)) {               // if actual number of players < 4
@@ -458,10 +485,16 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
 void F14_GameMain(byte Event) {                        // game switch events
+  if (APC_settings[DebugMode]){
+    Serial.print("Game mode switch = ");            // print address reference table
+    Serial.println((byte)Event);
+  }
   switch (Event) {
   case 1:                                             // plumb bolt tilt
   case 2:                                             // ball roll tilt
   case 7:                                             // slam tilt
+    break;
+  case 8:
     break;
   case 46:                                            // playfield tilt
     WriteUpper(" TILT  WARNING  ");
@@ -482,6 +515,22 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 24:    //vuk
     ActivateTimer(200, 0, F14_vUKHandler);
     break;
+  case 33:
+  case 34:
+  case 35:
+  case 36:
+  case 37:
+  case 38:
+    F14_TomcatTargetHandler(0,Event-33);
+    break;
+  case 49:
+  case 50:
+  case 51:
+  case 52:
+  case 53:
+  case 54:
+    F14_TomcatTargetHandler(0,Event-43);
+    break;
   case 65: // left slingshot
     ActivateSolenoid(0, 17);
     break;
@@ -496,6 +545,38 @@ void F14_GameMain(byte Event) {                        // game switch events
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
 
+void F14_TomcatTargetHandler(byte Event, byte Target) {
+  byte lit_target_count = 0;
+  switch (Event) {
+    case 0:
+      F14_TomcatTargets[Player][Target]  = 1;
+      if (Target < 6) {
+        F14_TomcatTargets[Player][Target+6] = 1;
+      }
+      else {
+        F14_TomcatTargets[Player][Target-6] = 1;
+      }
+      for (byte i = 0; i < 12; i++) {
+        if (F14_TomcatTargets[Player][i]==1) {
+          lit_target_count++;
+        }
+      }
+      // If all targets hit, reset them (need to add lock logic here sometime)
+      if (lit_target_count == 12){
+        for (byte j=0; j<12; j++) {
+          F14_TomcatTargets[Player][j]=0;}
+      }
+      F14_TomcatTargetLamps();
+      if (APC_settings[DebugMode]) { 
+
+        Serial.print("Target = ");
+        Serial.println((byte)Target);
+        Serial.print("lit_target_count= ");
+        Serial.println((byte)lit_target_count);
+      
+      }
+  }
+}
 
 // This handles various things for the vUK (popper top right)
 // The incoming event will specify what the routine is being called for
