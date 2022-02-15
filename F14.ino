@@ -2,6 +2,7 @@
 
 byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
+const byte F14_1to6LampNumbers[6] = {116,115,114,113,112,110};
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
@@ -217,7 +218,7 @@ void F14_AttractDisplayCycle(byte Step) {
   F14_CheckForLockedBalls(0);
   switch (Step) {
   case 0:
-    F14_GIOn(255,0,0);
+    //F14_GIOn(255,0,0);
     WriteUpper2("  F14  TOMCAT   ");
     ActivateTimer(50, 0, ScrollUpper);
     WriteLower2("                ");
@@ -228,7 +229,7 @@ void F14_AttractDisplayCycle(byte Step) {
       Step = 2;}
     break;
   case 1:
-    F14_GIOn(0,255,0);
+    //F14_GIOn(0,255,0);
     WriteUpper2("                ");                  // erase display
     WriteLower2("                ");
     for (i=1; i<=NoPlayers; i++) {                    // display the points of all active players
@@ -238,7 +239,7 @@ void F14_AttractDisplayCycle(byte Step) {
     Step++;
     break;
   case 2:                                             // Show highscores
-    F14_GIOff();
+    //F14_GIOff();
     WriteUpper2("1>              ");
     WriteLower2("2>              ");
     for (i=0; i<3; i++) {
@@ -254,7 +255,7 @@ void F14_AttractDisplayCycle(byte Step) {
     break;
   case 3:
     //F14_GIOn(0,0,255);
-    F14_GIOff();
+    //F14_GIOff();
     WriteUpper2("3>              ");
     WriteLower2("4>              ");
     for (i=0; i<3; i++) {
@@ -350,6 +351,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
         }
       F14_LineOfDeathHandler(1);  // sort the kill lamps out
       F14_RescueTargetHandler(0); // start the rescue target flip/flop
+      F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
       F14_TomcatTargetLamps();
       F14_Bonus = 0;
@@ -496,7 +498,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 8:
     break;
-  case 46:                                            // playfield tilt
+  case 9:                                            // playfield tilt
     WriteUpper(" TILT  WARNING  ");
     ActivateTimer(3000, 0, ShowAllPoints);
     break;
@@ -528,8 +530,17 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 36:
   case 37:
   case 38:
-    F14_BonusHandler(0);
     F14_TomcatTargetHandler(0,Event-33);
+    TurnOnLamp(115);
+    break;
+  // Centre 1-6 targets
+  case 41:
+  case 42:
+  case 43:
+  case 44:
+  case 45:
+  case 46:
+    F14_1to6Handler(Event);
     break;
   // Upper TOMCAT targets
   case 49:
@@ -643,15 +654,15 @@ void F14_LineOfDeathHandler(byte Event) {
       if (F14_Kills[Player]==7)
         return;
       F14_Kills[Player]++;
-      TurnOnLamp(8+F14_Kills[Player]);
+      TurnOnLamp(101+F14_Kills[Player]);
       F14_BonusHandler(1);
       break;
     case 1:
       for (byte i=1; i < 8; i++) {
         if (i > F14_Kills[Player])
-          TurnOffLamp(i+8);
+          TurnOffLamp(i+101);
         else
-          TurnOnLamp(i+8);
+          TurnOnLamp(i+101);
       break;
       }
   }
@@ -662,10 +673,11 @@ void F14_LineOfDeathHandler(byte Event) {
 // Event 1 is a spotted target (handle as 0 for now)
 void F14_TomcatTargetHandler(byte Event, byte Target) {
   byte lit_target_count = 0;
-  switch (Event) {
-    case 0:
-    case 1:
-      F14_TomcatTargets[Player][Target]  = 1;   // Mark the target as hit
+
+  // Target is still flashing, so score it
+  if (F14_TomcatTargets[Player][Target] == 0) {
+    Points[Player] += 1000;
+    F14_TomcatTargets[Player][Target]  = 1;   // Mark the target as hit
       if (Target < 6) {  // and the corresponding one on the other half of playfield
         F14_TomcatTargets[Player][Target+6] = 1;
       }
@@ -684,14 +696,73 @@ void F14_TomcatTargetHandler(byte Event, byte Target) {
           F14_TomcatTargets[Player][j]=0;}
       }
       F14_TomcatTargetLamps();
-      if (APC_settings[DebugMode]) { 
-
-        Serial.print("Target = ");
-        Serial.println((byte)Target);
-        Serial.print("lit_target_count= ");
-        Serial.println((byte)lit_target_count);
       
+  }
+  else { // target has already been hit, just score 100
+    Points[Player] += 100;
+  }
+}
+
+// Handler for the 1-6 targets in the centre of the playfield.  
+// These just light sequentially 6 -> 1 -> 6
+// If the lit one is hit, scores 10000, otherwise 500
+// 
+// Event 1 - start the light movement
+// Event 2 - stop the light movement
+// Event 3 - move to the next light
+// Events 41 - 46 switch hit
+// Routine indexes lamps / targets from 0-5 (to represent 1-6)
+void F14_1to6Handler(byte Event) {
+  static byte one_to_six_timer = 0;
+  static byte current_lamp=0;
+  static int direction=1;
+
+  switch (Event) {
+    case 1:
+      F14_1to6Handler(3);
+      break;
+    case 2:
+      if (one_to_six_timer) {
+        KillTimer(one_to_six_timer);
+        one_to_six_timer = 0;
       }
+      for (byte i=0; i<6; i++) {
+        //TurnOffLamp(F14_1to6LampNumbers[i]);
+      }
+      break;
+    case 3:
+      if (APC_settings[DebugMode]) {
+        Serial.print("1 to 6 lamp number");
+        Serial.println(current_lamp);
+      }
+      //TurnOffLamp(F14_1to6LampNumbers[current_lamp]);
+      current_lamp += direction;
+      if (current_lamp == 0 or current_lamp == 5) {
+        direction = direction * -1;
+      }
+      //TurnOnLamp(F14_1to6LampNumbers[current_lamp]);
+      //TurnOnLamp(115);
+      one_to_six_timer = ActivateTimer(1000,3,F14_1to6Handler);
+      break;
+    case 41:
+      Points[Player] += 500 + (9500 * (current_lamp == 2));
+      break;
+    case 42:
+      Points[Player] += 500 + (9500 * (current_lamp == 1));
+      break;
+    case 43:
+      Points[Player] += 500 + (9500 * (current_lamp == 0));
+      break;
+    case 44:
+      Points[Player] += 500 + (9500 * (current_lamp == 3));
+      break;
+    case 45:
+      Points[Player] += 500 + (9500 * (current_lamp == 4));
+      break;
+    case 46:
+      Points[Player] += 500 + (9500 * (current_lamp == 5));
+      break;
+
   }
 }
 
@@ -717,35 +788,37 @@ void F14_RescueTargetHandler(byte Event){
   static byte rescue_target_timer = 0;
   switch(Event) {
     case 0:
-      F14_RescueTargetHandler(4);
+      F14_RescueTargetHandler(4);  // just call the start for the left lamp
       break;
-    case 1:
+    case 1:  // kill the timer and switch the lamps off
       if (rescue_target_timer) {
-        KillTimer(rescue_target_timer);
-        rescue_target_timer = 0;
-      }
+          KillTimer(rescue_target_timer);
+          rescue_target_timer = 0;
+        }
+        TurnOffLamp(5);
+        TurnOffLamp(7);
       break;
     case 2:
       if (lit_target==0){
-        F14_RescueKickerHandler(0);       
+        F14_RescueKickerHandler(0); // left target hit and is lit, call the kicker handler
       }
       break;
     case 3:
       if (lit_target==1){
-        F14_RescueKickerHandler(0);       
+        F14_RescueKickerHandler(0); // right target hit and is lit, call the kicker handler      
       }
       break;
-    case 4:
+    case 4:  // Light left target
       lit_target = 0;
       TurnOnLamp(5);
       TurnOffLamp(7);
-      rescue_target_timer = ActivateTimer(1000, 5, F14_RescueTargetHandler);
+      rescue_target_timer = ActivateTimer(1000, 5, F14_RescueTargetHandler);  // move to right in 1 sec
       break;
-    case 5:
+    case 5:  // Light right target
       lit_target = 1;
       TurnOnLamp(7);
       TurnOffLamp(5);
-      rescue_target_timer = ActivateTimer(1000, 4, F14_RescueTargetHandler);
+      rescue_target_timer = ActivateTimer(1000, 4, F14_RescueTargetHandler);  // move to left in 1 sec
       break;
 
   }
@@ -753,34 +826,34 @@ void F14_RescueTargetHandler(byte Event){
 
 // Handler for the rescue kickback (left outlane)
 // Event 0 - light the kickback (called from F14_RescueTargetHandler) and on ball start
-// Event 1 - ball draining
+// Event 1 - ball hit outlane switch
 // Event 2 - grace period expires
 void F14_RescueKickerHandler(byte Event){
   static byte grace_timer=0;
   switch (Event){
-    case 0:
-      if (grace_timer) {
+    case 0:  // light kickback
+      if (grace_timer) {  // kill the grace timer if we have one
         KillTimer(grace_timer);
         grace_timer = 0;
       }
       F14_RescueKickerStatus = 1;
-      TurnOnLamp(8);
+      TurnOnLamp(8);  // switch on the outlane lamp
       break;
-    case 1:
+    case 1:  // ball in outlane
       switch (F14_RescueKickerStatus){
         case 1:
-          ActivateSolenoid(0,13);
+          ActivateSolenoid(0,13);  // Fire the kicker
           F14_RescueKickerStatus = 2;
-          TurnOffLamp(8);
-          AddBlinkLamp(8,40);
-          grace_timer = ActivateTimer(2000, 2, F14_RescueKickerHandler);
+          TurnOffLamp(8);  // Turn the lamp off
+          AddBlinkLamp(8,40);  // then blink it
+          grace_timer = ActivateTimer(2000, 2, F14_RescueKickerHandler);  // cancel in 2 secs
           break;
         case 2:
-          ActivateSolenoid(0,13);
+          ActivateSolenoid(0,13);  // if in grace period just fire kicker again
           break;
       }
       break;
-    case 2:
+    case 2:  // time is up
       grace_timer = 0;
       RemoveBlinkLamp(8);
       F14_RescueKickerStatus = 0;
@@ -839,7 +912,7 @@ void F14_LeftEjectHandler(byte Event) {
 }
 
 void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the moment
-  LEDsetColor(Red, Green, Blue);
+  //LEDsetColor(Red, Green, Blue);
   /*if (F14_GI_IsOn) {
     for (int i=65; i < 102; i++) {
       LEDchangeColor(i);}
@@ -857,6 +930,7 @@ void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the mome
   }*/
   for (int i=65; i < 102; i++) {
     TurnOnLamp(i);}
+  //TurnOnLamp(115);
       
   
   F14_GI_IsOn = 1;
