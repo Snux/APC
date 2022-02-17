@@ -4,6 +4,10 @@ byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
 const byte F14_1to6LampNumbers[6] = {116,115,114,113,112,110};
 const byte F14_1to6SwitchNumbers[6] = {43,42,41,44,45,46};
+
+const byte F14_LockedOnSeq[23] = {25,10,26,10,27,10,28,10,29,10,30,10,29,10,28,10,27,10,26,10,25,10,0};
+
+
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
@@ -488,8 +492,19 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
 void F14_GameMain(byte Event) {                        // game switch events
+  static unsigned long prev_switch_hit[71];
+  unsigned long time_now;
+
+  time_now=millis();
+  if (time_now - prev_switch_hit[Event] > 200) {
+    prev_switch_hit[Event] = time_now;
+  }
+  else {
+    return;
+  }
   if (APC_settings[DebugMode]){
-    Serial.print("Game mode switch = ");            // print address reference table
+    Serial.print(time_now);
+    Serial.print(" game mode switch = ");            // print address reference table
     Serial.println((byte)Event);
   }
   switch (Event) {
@@ -516,6 +531,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     ActivateTimer(200, 0, F14_CentreEjectHandler);
     break;  
   case 24:    //vuk
+    PlayFlashSequence((byte *)F14_LockedOnSeq);
     ActivateTimer(200, 0, F14_vUKHandler);
     break;
   case 25:  // left rescue target
