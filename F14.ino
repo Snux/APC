@@ -3,6 +3,7 @@
 byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
 const byte F14_1to6LampNumbers[6] = {116,115,114,113,112,110};
+const byte F14_1to6SwitchNumbers[6] = {43,42,41,44,45,46};
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
@@ -531,7 +532,6 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 37:
   case 38:
     F14_TomcatTargetHandler(0,Event-33);
-    TurnOnLamp(115);
     break;
   // Centre 1-6 targets
   case 41:
@@ -543,6 +543,9 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_1to6Handler(Event);
     break;
   // Upper TOMCAT targets
+  case 47:
+    F14_OrbitHandler(0);
+    break;
   case 49:
   case 50:
   case 51:
@@ -554,6 +557,9 @@ void F14_GameMain(byte Event) {                        // game switch events
   // Line of death (Yagov)
   case 55:
     F14_LineOfDeathHandler(0);
+    break;
+  case 56:
+    F14_OrbitHandler(1);
     break;
   case 61:
     F14_RescueKickerHandler(1);
@@ -667,7 +673,34 @@ void F14_LineOfDeathHandler(byte Event) {
       }
   }
 }
-  
+
+// Small handler for the spinner
+// Event 0 = spinner hit
+// Event 1 = light spinner 2k
+// Event 2 = reset spinner 2k
+void F14_SpinnerHandler(byte Event) {
+  static byte spinner_2k_lit=0;
+
+  switch (Event) {
+    case 0:
+      if (spinner_2k_lit) {
+        Points[Player] += 2000;
+      }
+      else {
+        Points[Player] += 10;
+      }
+      break;
+    case 1:
+      spinner_2k_lit = 1;
+      TurnOnLamp(56);
+      break;
+    case 2:
+      spinner_2k_lit = 0;
+      TurnOffLamp(56);
+      break;
+  }
+}
+
 // Handle one of the TOMCAT targets being hit
 // Event 0 is a hit target
 // Event 1 is a spotted target (handle as 0 for now)
@@ -717,6 +750,7 @@ void F14_1to6Handler(byte Event) {
   static byte current_lamp=0;
   static int direction=1;
 
+
   switch (Event) {
     case 1:
       F14_1to6Handler(3);
@@ -727,40 +761,37 @@ void F14_1to6Handler(byte Event) {
         one_to_six_timer = 0;
       }
       for (byte i=0; i<6; i++) {
-        //TurnOffLamp(F14_1to6LampNumbers[i]);
+        TurnOffLamp(F14_1to6LampNumbers[i]);
       }
       break;
     case 3:
-      if (APC_settings[DebugMode]) {
-        Serial.print("1 to 6 lamp number");
-        Serial.println(current_lamp);
-      }
-      //TurnOffLamp(F14_1to6LampNumbers[current_lamp]);
+      //if (APC_settings[DebugMode]) {
+      //  Serial.print("1 to 6 lamp number");
+      //  Serial.println(current_lamp);
+     // }
+      TurnOffLamp(F14_1to6LampNumbers[current_lamp]);
       current_lamp += direction;
       if (current_lamp == 0 or current_lamp == 5) {
         direction = direction * -1;
       }
-      //TurnOnLamp(F14_1to6LampNumbers[current_lamp]);
-      //TurnOnLamp(115);
+      TurnOnLamp(F14_1to6LampNumbers[current_lamp]);
       one_to_six_timer = ActivateTimer(1000,3,F14_1to6Handler);
       break;
+    // switch hit
     case 41:
-      Points[Player] += 500 + (9500 * (current_lamp == 2));
-      break;
     case 42:
-      Points[Player] += 500 + (9500 * (current_lamp == 1));
-      break;
     case 43:
-      Points[Player] += 500 + (9500 * (current_lamp == 0));
-      break;
     case 44:
-      Points[Player] += 500 + (9500 * (current_lamp == 3));
-      break;
     case 45:
-      Points[Player] += 500 + (9500 * (current_lamp == 4));
-      break;
     case 46:
-      Points[Player] += 500 + (9500 * (current_lamp == 5));
+      if (current_lamp == F14_1to6SwitchNumbers[Event-41]) {
+        Points[Player] += 10000;
+        F14_SpinnerHandler(1); // increase spinner score to 2k
+        F14_OrbitHandler(4);  // light left and right orbit bonusx
+      }
+      else {
+        Points[Player] += 500;
+      }
       break;
 
   }
@@ -775,6 +806,147 @@ byte F14_SpotTomcat() {
       break;
   }
   F14_TomcatTargetHandler(1,i);
+}
+
+
+// Orbit handler
+// Event 0 - ball hit right switch
+// Event 1 - ball hit left switch
+// Event 2 - light bonus X right side
+// Event 3 - light bonus X left side
+// Event 4 - light bonus X both sides
+// Event 6 - bonus X times out
+// Event 7 - kill any running timers
+// Event 8 - reset the orbit (end of ball)
+// Operation of the orbit...
+// Ball travelling from left to right will light left bonus x lamp if loop completed.
+// Ball travelling from right to left will light right bonux x lamp if loop completed.
+// Hitting the lit 1-6 target will light both bonus x lamps
+// If loop is shot with bonus x lamp lit, bonus multiplier will increase
+// Bonus x lamps stay lit for 5 seconds, then flash for 2 seconds (grace period), then deactivate
+void F14_OrbitHandler(byte Event) {
+  static byte right_bonusX_lit = 0;
+  static byte left_bonusX_lit = 0;
+  static byte anti_clock_timer = 0;
+  static byte clockwise_timer = 0;
+  static byte orbit_bonusx_timer = 0;
+
+  if (APC_settings[DebugMode]) {
+    Serial.print("Orbit Event = ");
+    Serial.println(Event);
+    Serial.print("Anti Clock Timer = ");
+    Serial.println(anti_clock_timer);
+    Serial.print("Clockwise Timer = ");
+    Serial.println(clockwise_timer);
+    Serial.print("Orbit right lit = ");
+    Serial.println(right_bonusX_lit);
+    Serial.print("Orbit left lit = ") ;
+    Serial.println(left_bonusX_lit);
+    
+  }
+  switch (Event) {
+    // Switch at right of orbit hit
+    // If the ball was travelling from left to right, the loop has been made
+    // If loop made and left bonus X was lit, increase multiplier
+    // If loop made and left bonus X not lit, light it
+    case 0:  // switch at right side of orbit hit
+      if (clockwise_timer) {
+        KillTimer(clockwise_timer);
+        clockwise_timer = 0;
+        if (left_bonusX_lit) {
+          F14_BonusHandler(1);
+          F14_OrbitHandler(6);  // extend the timer
+        }
+        else {
+          F14_OrbitHandler(3);
+        }
+      }
+      else if (anti_clock_timer==0) {
+        anti_clock_timer = ActivateTimer(1500, 9, F14_OrbitHandler);
+      }
+
+      break;
+    case 1:  // switch at left side hit
+      if (anti_clock_timer) {
+        KillTimer(anti_clock_timer);
+        anti_clock_timer = 0;
+        if (right_bonusX_lit) {
+          F14_BonusHandler(1);
+          F14_OrbitHandler(6); // extend the timer
+        }
+        else {
+          F14_OrbitHandler(2);
+        }
+      }
+      else if (clockwise_timer==0) {
+        clockwise_timer = ActivateTimer(1500, 10, F14_OrbitHandler);
+      }
+      break;
+    case 2:
+      right_bonusX_lit = 1;
+      AddBlinkLamp(55,300);
+      if (orbit_bonusx_timer) {
+        KillTimer(orbit_bonusx_timer);
+      }
+      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      break;
+    case 3:
+      left_bonusX_lit = 1;
+      AddBlinkLamp(32,300);
+      if (orbit_bonusx_timer) {
+        KillTimer(orbit_bonusx_timer);
+      }
+      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      
+      break;
+    case 4:
+      left_bonusX_lit = 1;
+      right_bonusX_lit = 1;
+      AddBlinkLamp(32,300);
+      AddBlinkLamp(55,300);
+      if (orbit_bonusx_timer) {
+        KillTimer(orbit_bonusx_timer);
+      }
+      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      break;
+    case 5: // timed out
+      RemoveBlinkLamp(32);
+      RemoveBlinkLamp(55);
+      left_bonusX_lit = 0;
+      right_bonusX_lit = 0;
+      orbit_bonusx_timer = 0;
+      break;
+    case 6:  // orbit made while bonusx lit, reset the timer
+      if (orbit_bonusx_timer) {
+        KillTimer(orbit_bonusx_timer);
+        orbit_bonusx_timer = 0;
+      }
+      orbit_bonusx_timer = ActivateTimer(5000, 5, F14_OrbitHandler);
+    case 7:  // reset the orbit handler (new ball for example)
+      if (orbit_bonusx_timer) {
+        KillTimer(orbit_bonusx_timer);
+        orbit_bonusx_timer = 0;
+      }
+      if (clockwise_timer) {
+        KillTimer(clockwise_timer);
+        clockwise_timer = 0;
+      }
+      if (anti_clock_timer) {
+        KillTimer(anti_clock_timer);
+        anti_clock_timer = 0;
+      }
+      left_bonusX_lit=0;
+      right_bonusX_lit=0;
+      RemoveBlinkLamp(32);
+      RemoveBlinkLamp(55);
+      break;
+    case 9:
+      anti_clock_timer = 0;
+      break;
+    case 10:
+      clockwise_timer = 0;
+      break;
+  }
 }
 
 // Event 0 = start the flip/flop between rescue targets
