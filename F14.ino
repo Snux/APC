@@ -10,10 +10,13 @@ const byte F14_LockedOnSeq[23] = {25,10,26,10,27,10,28,10,29,10,30,10,29,10,28,1
 
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
+byte F14_LockedBalls;
+byte F14_NextLock=0;
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
+byte F14_Diverter_Destination=0;
 
 
 const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
@@ -495,6 +498,8 @@ void F14_GameMain(byte Event) {                        // game switch events
   static unsigned long prev_switch_hit[71];
   unsigned long time_now;
 
+  // Debounce the switches - only pass on a switch event if it hasn't
+  // activated in the previous 200ms
   time_now=millis();
   if (time_now - prev_switch_hit[Event] > 200) {
     prev_switch_hit[Event] = time_now;
@@ -521,17 +526,16 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 3:                                             // credit button
     F14_AddPlayer();
     break;
+  case 20:  // ramp entry
+    F14_Divertor_Handler(0);
+    break;
   case 21:                                            //right eject
-    ActivateTimer(200, 0, F14_RightEjectHandler);
-    break;  
   case 22:                                            //left
-    ActivateTimer(200, 0, F14_LeftEjectHandler);
-    break;  
   case 23:                                            //centre
-    ActivateTimer(200, 0, F14_CentreEjectHandler);
+    F14_LockHandler(Event);
     break;  
   case 24:    //vuk
-    PlayFlashSequence((byte *)F14_LockedOnSeq);
+   
     ActivateTimer(200, 0, F14_vUKHandler);
     break;
   case 25:  // left rescue target
@@ -539,6 +543,11 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 26:
     F14_RescueTargetHandler(3);
+    break;
+  case 30:
+  case 31:
+  case 32:
+    F14_LockHandler(Event);
     break;
   // Lower TOMCAT targets
   case 33:
@@ -606,6 +615,89 @@ void F14_TomcatTargetLamps() {
       case 0: AddBlinkLamp(F14TomcatTargetLampNumbers[i],100);
       case 1: TurnOnLamp(F14TomcatTargetLampNumbers[i]);
     }
+  }
+}
+
+// Lock handler
+// Event 0 - TOMCAT completed
+
+void F14_LockHandler(byte Event) {
+  static byte locks_available;
+
+  locks_available = 0;
+  for (byte i=0; i<3; i++) {
+    if (F14_LockStatus[Player][i]==0) {
+      locks_available++;
+    }
+  }
+
+  switch (Event) {
+    case 0:  // Completed TOMCAT, need to light a lock
+      if (!locks_available)
+        return;
+      if (F14_LockStatus[Player][0]==0) {
+        F14_LockHandler(1);
+      }
+      else if (F14_LockStatus[Player][1]==0) {
+        F14_LockHandler(2);
+      }
+      else {
+        F14_LockHandler(3);
+      }
+      break;
+    case 1: //enable lock 1
+      F14_LockStatus[Player][0] = 1;
+      AddBlinkLamp(58,300);
+      break;
+    case 2: //enable lock 2
+      F14_LockStatus[Player][1] = 1;
+      AddBlinkLamp(57,300);
+      break;
+    case 3: //enable lock 3
+      F14_LockStatus[Player][2] = 1;
+      AddBlinkLamp(59,300);
+      break;
+    case 4: // Ball locked in 1
+      F14_LockStatus[Player][0]=2;
+      RemoveBlinkLamp(58);
+      TurnOnLamp(58);
+      break;
+    case 5: // Ball locked in 2
+      F14_LockStatus[Player][1]=2;
+      RemoveBlinkLamp(57);
+      TurnOnLamp(57);
+      break;
+    case 6: // Ball locked in 3
+      F14_LockStatus[Player][2]=2;
+      RemoveBlinkLamp(59);
+      TurnOnLamp(59);
+      break;
+    case 31:  // middle ramp
+      ReleaseSolenoid (22);
+      break;
+    case 32:  // upper ramp
+      ReleaseSolenoid (21);
+      break;
+    case 22: // Lock number 1
+      if (F14_LockStatus[Player][0]==1) {
+        F14_LockHandler(4);
+      }
+      ActivateSolenoid(0, 10);
+      break;
+    case 23: // Lock number 2
+      if (F14_LockStatus[Player][1]==1) {
+        F14_LockHandler(5);
+      }
+      ActA_BankSol(5);
+      break;
+    case 21: // Lock number 3
+      if (F14_LockStatus[Player][2]==1) {
+        F14_LockHandler(6);
+      }
+      ActA_BankSol(7);
+      break;
+    
+
   }
 }
 
@@ -717,6 +809,47 @@ void F14_SpinnerHandler(byte Event) {
   }
 }
 
+// Divertor handler
+// Called when a ball is about to enter the ramp with the 2 diverters
+// Decides where to route the ball based on the status of the locks
+// Event 0 - incoming ball
+// Event 1 - called when timer expires
+void F14_Divertor_Handler(byte Event) {
+  byte destination_lock;
+
+  
+  switch (Event) {
+    case 0:
+      // choose which lock to send the ball to.  This could do with being a little more random
+      // At the moment, pick the first lock that is lit, otherwise choose something random
+      if (F14_LockStatus[Player][0]==1) {
+        destination_lock = 0;
+      }
+      else if (F14_LockStatus[Player][1]==1) {
+        destination_lock = 1;
+      }
+      else if (F14_LockStatus[Player][2]==1) {
+        destination_lock = 2;
+      }
+      else {
+        destination_lock = random(3);
+      } 
+
+      switch (destination_lock) {
+        case 0:
+          ActivateSolenoid(1500,22);
+          break;
+        case 1:
+          ActivateSolenoid(1500,21);
+          break;
+        case 2:
+          break;
+      }
+
+  }
+
+}
+
 // Handle one of the TOMCAT targets being hit
 // Event 0 is a hit target
 // Event 1 is a spotted target (handle as 0 for now)
@@ -743,6 +876,7 @@ void F14_TomcatTargetHandler(byte Event, byte Target) {
       if (lit_target_count == 12){
         for (byte j=0; j<12; j++) {
           F14_TomcatTargets[Player][j]=0;}
+        F14_LockHandler(0); // Tell the lock handler we can light another lock
       }
       F14_TomcatTargetLamps();
       
@@ -1055,9 +1189,13 @@ void F14_RescueKickerHandler(byte Event){
 void F14_vUKHandler(byte Event) {
   switch (Event) {
     case 0:             // will need expanding when lock logic coded
-      ActA_BankSol(3);
+      PlayFlashSequence((byte *)F14_LockedOnSeq);
+      ActivateTimer(2000,1,F14_vUKHandler);
       break;
-    
+    case 1:  // Timer over, send the ball on its way
+      ActA_BankSol(3);
+      F14_Divertor_Handler(0);   // let the divertor know a ball is on the way
+      break;
   }
 }
 
