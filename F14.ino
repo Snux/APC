@@ -291,21 +291,6 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
   case 20:                                            // outhole
     ActivateTimer(200, 0, F14_CheckForLockedBalls);    // check again in 200ms
     break;
-  // In attract mode, the ejects and vUK shouldn't have a ball in.  But if the previous
-  // game was switched off mid way through, it's possible.  If we find something there,
-  // just call the handler for a simple eject
-  case 21:                                            //right eject
-    ActivateTimer(200, 0, F14_RightEjectHandler);
-    break;  
-  case 22:                                            //left
-    ActivateTimer(200, 0, F14_LeftEjectHandler);
-    break;  
-  case 23:                                            //centre
-    ActivateTimer(200, 0, F14_CentreEjectHandler);
-    break;  
-  case 24:    //vuk
-    ActivateTimer(200, 0, F14_vUKHandler);
-    break;
 
   case 72:                                            // Service Mode
     BlinkScore(0);                                    // stop score blinking
@@ -372,18 +357,48 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
 
 
 void F14_AddPlayer() {
+  if (APC_settings[DebugMode]){
+    Serial.println("F14_AddPlayer");            // print address reference table
+  }
+
   if ((NoPlayers < 4) && (Ball == 1)) {               // if actual number of players < 4
     NoPlayers++;                                      // add a player
     Points[NoPlayers] = 0;                            // delete the points of the new player
     ShowPoints(NoPlayers);}}                          // and show them
 
+// Called at game over
 void F14_CheckForLockedBalls(byte Event) {             // check if balls are locked and release them
+  if (APC_settings[DebugMode]){
+    Serial.println("F14_CheckForLockedBalls");            // print address reference table
+  }
+
   UNUSED(Event);
-  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) {                     // for the outhole
-    ActA_BankSol(game_settings[F14set_OutholeKicker]);}
+  if (QuerySwitch(10)) {                     // for the outhole
+    ActA_BankSol(1);}
+  if (QuerySwitch(22)) {  // Lock1
+    ActivateSolenoid(0,10);
+  }
+  if (QuerySwitch(23)) {  // Lock 2
+    ActivateTimer(1000,5,F14_ActivateSolenoid);
+  }
+  if (QuerySwitch(21)) {  // Lock 3
+    ActivateTimer(1000, 7, F14_ActivateSolenoid);
+  }
+  if (QuerySwitch(24)) {
+    ActivateSolenoid(0,3);
+  }
 }                                                     // add the locks of your game here
 
+// Normal coil activation, but can be called from a timer
+void F14_ActivateSolenoid (byte Coil) {
+  ActivateSolenoid(0,Coil);
+}
+
 void F14_NewBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
+  if (APC_settings[DebugMode]){
+    Serial.println("F14_NewBall");            // print address reference table
+  }
+
   ShowAllPoints(0);
   F14_RescueKickerHandler(0);                         // Light the kickback at ball start
   if (APC_settings[DisplayType] < 2) {                // credit display present?
@@ -397,13 +412,41 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   else {
     Switch_Pressed = F14_ResetBallWatchdog;}}
 
+void F14_GiveBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
+if (APC_settings[DebugMode]){
+    Serial.println("F14_GiveBall");            // print address reference table
+    
+  }
+  ShowAllPoints(0);
+  if (APC_settings[DisplayType] < 2) {                // credit display present?
+    *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
+  BlinkScore(1);                                      // start score blinking
+  Switch_Released = F14_CheckShooterLaneSwitch;
+  if (!QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) {
+    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);               // release ball
+    Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
+    CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
+  else {
+    Switch_Pressed = F14_ResetBallWatchdog;}}
+
+
 void F14_CheckShooterLaneSwitch(byte Switch) {
-  if (Switch == game_settings[F14set_PlungerLaneSwitch]) { // shooter lane switch released?
+    if (APC_settings[DebugMode]){
+    Serial.println("F14_CheckShooterLaneSwitch with switch ");            // print address reference table
+    Serial.println((byte)Switch);
+  }
+
+  if (Switch == 16) { // shooter lane switch released?
     Switch_Released = DummyProcess;
     if (!BallWatchdogTimer) {
       BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}}}
 
 void F14_BallReleaseCheck(byte Switch) {               // handle switches during ball release
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_BallReleaseCheck with switch ");            // print address reference table
+    Serial.println((byte)Switch);
+  }
+
   if (Switch > 15) {                                  // edit this to be true only for playfield switches
     if (CheckReleaseTimer) {
       KillTimer(CheckReleaseTimer);
@@ -417,6 +460,11 @@ void F14_BallReleaseCheck(byte Switch) {               // handle switches during
   F14_GameMain(Switch);}                               // process current switch
 
 void F14_ResetBallWatchdog(byte Switch) {              // handle switches during ball release
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_ResetBallWatchdog with switch ");            // print address reference table
+    Serial.println((byte)Switch);
+  }
+
   if (Switch > 15) {                                  // edit this to be true only for playfield switches
     if (BallWatchdogTimer) {
       KillTimer(BallWatchdogTimer);}                  // stop watchdog
@@ -424,6 +472,11 @@ void F14_ResetBallWatchdog(byte Switch) {              // handle switches during
   F14_GameMain(Switch);}                               // process current switch
 
 void F14_SearchBall(byte Counter) {                    // ball watchdog timer has run out
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_SearchBall with counter ");            // print address reference table
+    Serial.println((byte)Counter);
+  }
+
   BallWatchdogTimer = 0;
   if (QuerySwitch(game_settings[F14set_OutholeSwitch])) {
     BlockOuthole = false;
@@ -466,6 +519,11 @@ byte F14_CountBallsInTrunk() {
   return Balls;}
 
 void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_CheckReleasedBall with balls ");            // print address reference table
+    Serial.println((byte)Balls);
+  }
+
   CheckReleaseTimer = 0;
   BlinkScore(0);                                      // stop blinking to show messages
   WriteUpper("WAITINGFORBALL  ");                     // indicate a problem
@@ -495,7 +553,7 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
 void F14_GameMain(byte Event) {                        // game switch events
-  static unsigned long prev_switch_hit[71];
+  static unsigned long prev_switch_hit[75];
   unsigned long time_now;
 
   // Debounce the switches - only pass on a switch event if it hasn't
@@ -518,6 +576,16 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 7:                                             // slam tilt
     break;
   case 8:
+    Serial.println("Game Info");
+    Serial.print("Player Number ");
+    Serial.println((byte)Player);
+    Serial.print("Ball Number ");
+    Serial.println((byte)Ball);
+    Serial.print("In Lock ");
+    Serial.println((byte)InLock);
+    Serial.print("Multiballs ");
+    Serial.println((byte)Multiballs);
+
     break;
   case 9:                                            // playfield tilt
     WriteUpper(" TILT  WARNING  ");
@@ -624,6 +692,12 @@ void F14_TomcatTargetLamps() {
 void F14_LockHandler(byte Event) {
   static byte locks_available;
 
+  if (APC_settings[DebugMode]){
+    Serial.print("Lock Handler called, event =  ");            // print address reference table
+    Serial.println((byte)Event);
+  }
+ 
+
   locks_available = 0;
   for (byte i=0; i<3; i++) {
     if (F14_LockStatus[Player][i]==0) {
@@ -661,16 +735,22 @@ void F14_LockHandler(byte Event) {
       F14_LockStatus[Player][0]=2;
       RemoveBlinkLamp(58);
       TurnOnLamp(58);
+      InLock++;
+      F14_GiveBall(1);
       break;
     case 5: // Ball locked in 2
       F14_LockStatus[Player][1]=2;
       RemoveBlinkLamp(57);
       TurnOnLamp(57);
+      InLock++;
+      F14_GiveBall(1);
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
       RemoveBlinkLamp(59);
       TurnOnLamp(59);
+      InLock++;
+      F14_GiveBall(1);
       break;
     case 31:  // middle ramp
       ReleaseSolenoid (22);
@@ -679,24 +759,41 @@ void F14_LockHandler(byte Event) {
       ReleaseSolenoid (21);
       break;
     case 22: // Lock number 1
-      if (F14_LockStatus[Player][0]==1) {
-        F14_LockHandler(4);
+      switch (F14_LockStatus[Player][0]) {
+        case 0:
+          ActivateSolenoid(0, 10);
+          break;
+        case 1:
+          F14_LockHandler(4);
+          break;
+        case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+          break;
       }
-      ActivateSolenoid(0, 10);
-      break;
     case 23: // Lock number 2
-      if (F14_LockStatus[Player][1]==1) {
-        F14_LockHandler(5);
+      switch (F14_LockStatus[Player][1]) {
+        case 0:
+          ActA_BankSol(5);
+          break;
+        case 1:
+          F14_LockHandler(5);
+          break;
+        case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+          break;
       }
-      ActA_BankSol(5);
       break;
     case 21: // Lock number 3
-      if (F14_LockStatus[Player][2]==1) {
-        F14_LockHandler(6);
+      switch (F14_LockStatus[Player][2]) {
+        case 0:
+          ActA_BankSol(7);
+          break;
+        case 1:
+          F14_LockHandler(6);
+          break;
+        case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+          break;
       }
-      ActA_BankSol(7);
       break;
-    
+      
 
   }
 }
@@ -831,6 +928,16 @@ void F14_Divertor_Handler(byte Event) {
       else if (F14_LockStatus[Player][2]==1) {
         destination_lock = 2;
       }
+      else if (F14_LockStatus[Player][0]==0) {
+        destination_lock = 0;
+      }
+      else if (F14_LockStatus[Player][1]==0) {
+        destination_lock = 1;
+      }
+      else if (F14_LockStatus[Player][2]==0) {
+        destination_lock = 2;
+      }
+
       else {
         destination_lock = random(3);
       } 
@@ -981,7 +1088,7 @@ void F14_OrbitHandler(byte Event) {
   static byte clockwise_timer = 0;
   static byte orbit_bonusx_timer = 0;
 
-  if (APC_settings[DebugMode]) {
+  /*if (APC_settings[DebugMode]) {
     Serial.print("Orbit Event = ");
     Serial.println(Event);
     Serial.print("Anti Clock Timer = ");
@@ -993,7 +1100,7 @@ void F14_OrbitHandler(byte Event) {
     Serial.print("Orbit left lit = ") ;
     Serial.println(left_bonusX_lit);
     
-  }
+  }*/
   switch (Event) {
     // Switch at right of orbit hit
     // If the ball was travelling from left to right, the loop has been made
@@ -1273,10 +1380,10 @@ void F14_GIOff() {
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
-  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // outhole switch still active?
+  if (QuerySwitch(10)) { // outhole switch still active?
     if (!BlockOuthole && !C_BankActive) {             // outhole blocked?
       BlockOuthole = true;                            // block outhole until this ball has been processed
-      ActivateSolenoid(30, game_settings[F14set_OutholeKicker]); // put ball in trunk
+      ActivateSolenoid(30, 1); // put ball in trunk
       ActivateTimer(2000, 0, F14_BallEnd);}
     else {
       ActivateTimer(2000, 0, F14_ClearOuthole);}}}     // come back in 2s if outhole is blocked
