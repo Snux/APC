@@ -19,6 +19,7 @@ byte F14_GI_IsOn = 0;
 byte F14_Diverter_Destination=0;
 
 
+
 const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
 const byte F14_BallThroughSwitches[4] = {11,12,13,14};    // ball through switches from the plunger lane to the outhole
 const byte F14_PlungerLaneSwitch = 16;
@@ -46,6 +47,7 @@ const byte F14_defaults[64] = {10,11,12,13,14,16,14,1,        // game default se
                               0,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0,
                               0,0,0,0,0,0,0,0};
+
 
 const struct SettingTopic F14_setList[13] = {{"OUTHOLESWITCH ",HandleNumSetting,0,1,64}, // defines the game specific settings
     {" BALL  THRU 1 ",HandleNumSetting,0,1,64},
@@ -401,6 +403,12 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
 
   ShowAllPoints(0);
   F14_RescueKickerHandler(0);                         // Light the kickback at ball start
+  F14_LockHandler(7);                                 // Lock handler reset
+  F14_BonusHandler(2);                                // Reset bonus lamps
+  F14_TomcatTargetLamps();
+  F14_LineOfDeathHandler(1);
+  F14_SpinnerHandler(2);
+  F14_OrbitHandler(7);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -432,7 +440,7 @@ if (APC_settings[DebugMode]){
 
 void F14_CheckShooterLaneSwitch(byte Switch) {
     if (APC_settings[DebugMode]){
-    Serial.println("F14_CheckShooterLaneSwitch with switch ");            // print address reference table
+    Serial.print("F14_CheckShooterLaneSwitch with switch ");            // print address reference table
     Serial.println((byte)Switch);
   }
 
@@ -465,7 +473,7 @@ void F14_ResetBallWatchdog(byte Switch) {              // handle switches during
     Serial.println((byte)Switch);
   }
 
-  if (Switch > 15) {                                  // edit this to be true only for playfield switches
+  if (Switch > 19) {                                  // edit this to be true only for playfield switches
     if (BallWatchdogTimer) {
       KillTimer(BallWatchdogTimer);}                  // stop watchdog
     BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}
@@ -566,8 +574,8 @@ void F14_GameMain(byte Event) {                        // game switch events
     return;
   }
   if (APC_settings[DebugMode]){
-    Serial.print(time_now);
-    Serial.print(" game mode switch = ");            // print address reference table
+  //  Serial.print(time_now);
+    Serial.print("Game mode switch ");            // print address reference table
     Serial.println((byte)Event);
   }
   switch (Event) {
@@ -635,10 +643,11 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 46:
     F14_1to6Handler(Event);
     break;
-  // Upper TOMCAT targets
+  
   case 47:
-    F14_OrbitHandler(0);
+    F14_OrbitHandler(0);  //right orbit
     break;
+  // Upper TOMCAT targets
   case 49:
   case 50:
   case 51:
@@ -651,9 +660,16 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 55:
     F14_LineOfDeathHandler(0);
     break;
-  case 56:
+  case 56:  //left orbit switch
     F14_OrbitHandler(1);
     break;
+  case 59: // left inlane
+    F14_OrbitHandler(2);
+    // Code for launch bonus
+    break;
+  case 60:  //right inlane
+    F14_OrbitHandler(3);
+    // Code whatever that does
   case 61:
     F14_RescueKickerHandler(1);
     break;
@@ -688,7 +704,15 @@ void F14_TomcatTargetLamps() {
 
 // Lock handler
 // Event 0 - TOMCAT completed
-
+// 1 - enable lock 1
+// 2 - enable lock 2
+// 3 - enable lock 3
+// 4 lock ball in 1
+// 5 lock ball in 2
+// 6 lock ball in 3
+// 31 middle ramp switch
+// 32 lower ramp switch
+// 21-23 ball landed in lock
 void F14_LockHandler(byte Event) {
   static byte locks_available;
 
@@ -752,19 +776,80 @@ void F14_LockHandler(byte Event) {
       InLock++;
       F14_GiveBall(1);
       break;
-    case 31:  // middle ramp
-      ReleaseSolenoid (22);
-      break;
-    case 32:  // upper ramp
-      ReleaseSolenoid (21);
-      break;
-    case 22: // Lock number 1
+    // Reset lamps/locks for next player
+    // If a lock has status 2 (ball locked) but there is no ball in the lock
+    // reset the status to 1 (lock lit)
+    case 7:  // Reset the lamps/locks for next player
       switch (F14_LockStatus[Player][0]) {
         case 0:
-          ActivateSolenoid(0, 10);
+          TurnOffLamp(58);
           break;
         case 1:
-          F14_LockHandler(4);
+          AddBlinkLamp(58,300);
+          break;
+        case 2:
+          if (QuerySwitch(22)) {
+            TurnOnLamp(58);
+          }
+          else {
+            F14_LockStatus[Player][0]=1;
+            AddBlinkLamp(58,300);
+          }
+      }
+      switch (F14_LockStatus[Player][1]) {
+        case 0:
+          TurnOffLamp(57);
+          break;
+        case 1:
+          AddBlinkLamp(57,300);
+          break;
+        case 2:
+          if (QuerySwitch(23)) {
+            TurnOnLamp(57);
+          }
+          else {
+            F14_LockStatus[Player][1]=1;
+            AddBlinkLamp(57,300);
+          }
+      }
+      switch (F14_LockStatus[Player][2]) {
+        case 0:
+          TurnOffLamp(59);
+          break;
+        case 1:
+          AddBlinkLamp(59,300);
+          break;
+        case 2:
+          if (QuerySwitch(21)) {
+            TurnOnLamp(59);
+          }
+          else {
+            F14_LockStatus[Player][1]=1;
+            AddBlinkLamp(59,300);
+          }
+      }
+      
+    case 31:  // middle ramp
+      if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
+        // Play "heads up"
+        ActivateSolenoid(0, 10);
+      }
+      ReleaseSolenoid (22);  // Can also release the divertor coil early
+      break;
+    case 32:  // upper ramp
+      if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
+        // Play "heads up"
+        ActA_BankSol(5);
+      }
+      ReleaseSolenoid (21);  // Can also release the divertor coil early
+      break;
+    case 22: // Lock number 1
+      switch (F14_LockStatus[Player][0]) {  // check the lock status
+        case 0:
+          ActivateSolenoid(0, 10);  // if not lit or locked, kick the ball out
+          break;
+        case 1:
+          F14_LockHandler(4);  // If lit, lock the ball
           break;
         case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
           break;
@@ -867,6 +952,34 @@ void F14_LineOfDeathHandler(byte Event) {
       F14_Kills[Player]++;
       TurnOnLamp(101+F14_Kills[Player]);
       F14_BonusHandler(1);
+      switch (F14_Kills[Player]) {
+        case 1:
+          WriteUpper2(" ALPHA  KILL  ");  
+          break;
+        case 2:
+          WriteUpper2(" BRAVO  KILL  ");  
+          break;
+        case 3:
+          WriteUpper2("CHARLIE KILL  ");  
+          break;
+        case 4:
+          WriteUpper2(" DELTA  KILL  ");  
+          break;
+        case 5:
+          WriteUpper2("  ECHO  KILL  ");  
+          break;
+        case 6:
+          WriteUpper2("  FOX   KILL  ");  
+          break;
+        case 7:
+          WriteUpper2("  GOLF  KILL  ");  
+          break;
+      }
+      WriteLower2("              ");
+      //ShowNumber(15, PB_SkillMultiplier);                 // show multiplier
+      ShowMessage(2);
+  
+
       break;
     case 1:
       for (byte i=1; i < 8; i++) {
@@ -894,6 +1007,7 @@ void F14_SpinnerHandler(byte Event) {
       else {
         Points[Player] += 10;
       }
+      ShowPoints(Player);
       break;
     case 1:
       spinner_2k_lit = 1;
@@ -991,6 +1105,7 @@ void F14_TomcatTargetHandler(byte Event, byte Target) {
   else { // target has already been hit, just score 100
     Points[Player] += 100;
   }
+  ShowPoints(Player);
 }
 
 // Handler for the 1-6 targets in the centre of the playfield.  
@@ -1052,6 +1167,7 @@ void F14_1to6Handler(byte Event) {
       break;
 
   }
+  ShowPoints(Player);
 }
 
 // Some shots will spot a TOMCAT letter, this routine will find an unlit
