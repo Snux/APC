@@ -2,21 +2,20 @@
 
 byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
-const byte F14_1to6LampNumbers[6] = {116,115,114,113,112,110};
+const byte F14_1to6LampNumbers[6] = {116,115,114,113,110,112};
 const byte F14_1to6SwitchNumbers[6] = {43,42,41,44,45,46};
 
 const byte F14_LockedOnSeq[23] = {25,10,26,10,27,10,28,10,29,10,30,10,29,10,28,10,27,10,26,10,25,10,0};
 
 
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
-byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked
-byte F14_LockedBalls;
-byte F14_NextLock=0;
+byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked, 3 contains unlocked ball
+byte F14_LockOccupied[3]; // does the lock contain a ball.  0 = no, 1 = yes, 2 = no but waiting refill
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
-byte F14_Diverter_Destination=0;
+
 
 
 
@@ -213,7 +212,7 @@ void F14_AttractMode() {                               // Attract Mode
   AppByte2 = 0;
   LampReturn = F14_AttractLampCycle;
   ActivateTimer(1000, 0, F14_AttractLampCycle);
-  F14_AttractDisplayCycle(0);}
+  F14_AttractDisplayCycle(1);}
 
 void F14_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
   UNUSED(Event);
@@ -225,31 +224,43 @@ void F14_AttractLampCycle(byte Event) {                // play multiple lamp pat
   ShowLampPatterns(1);}                               // call the player
 
 void F14_AttractDisplayCycle(byte Step) {
-  F14_CheckForLockedBalls(0);
+  static byte Timer0 = 0;
+  static byte Timer1 = 0;
+  static byte Timer2 = 0;
   switch (Step) {
-  case 0:
-    //F14_GIOn(255,0,0);
-    WriteUpper2("  F14  TOMCAT   ");
-    ActivateTimer(50, 0, ScrollUpper);
+  case 0:                                             // stop command
+    if (Timer0) {
+      KillTimer(Timer0);
+      Timer0 = 0;}
+    if (Timer1) {
+      KillTimer(Timer1);
+      Timer1 = 0;}
+    if (Timer2) {
+      KillTimer(Timer2);
+      Timer2 = 0;}
+    ScrollUpper(100);                                 // stop scrolling
+    ScrollLower2(100);
+    return;
+  case 1:                                             // attract mode title 'page'
+    WriteUpper2("APC BASE CODE   ");
+    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
     WriteLower2("                ");
-    ActivateTimer(1000, 0, ScrollLower2);
+    Timer2 = ActivateTimer(1000, 6, F14_AttractDisplayCycle);
     if (NoPlayers) {                                  // if there were no games before skip the next step
       Step++;}
     else {
-      Step = 2;}
+      Step = 3;}
     break;
-  case 1:
-    //F14_GIOn(0,255,0);
+  case 2:                                             // show scores of previous game
     WriteUpper2("                ");                  // erase display
     WriteLower2("                ");
     for (i=1; i<=NoPlayers; i++) {                    // display the points of all active players
       ShowNumber(8*i-1, Points[i]);}
-    ActivateTimer(50, 0, ScrollUpper);
-    ActivateTimer(900, 0, ScrollLower2);
+    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
     Step++;
     break;
-  case 2:                                             // Show highscores
-    //F14_GIOff();
+  case 3:                                             // Show highscores
     WriteUpper2("1>              ");
     WriteLower2("2>              ");
     for (i=0; i<3; i++) {
@@ -259,13 +270,11 @@ void F14_AttractDisplayCycle(byte Step) {
       *(DisplayLower2+8+2*i+1) = DispPattern2[(HallOfFame.Initials[3+i]-32)*2+1];}
     ShowNumber(15, HallOfFame.Scores[0]);
     ShowNumber(31, HallOfFame.Scores[1]);
-    ActivateTimer(50, 0, ScrollUpper);
-    ActivateTimer(900, 0, ScrollLower2);
+    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
     Step++;
     break;
-  case 3:
-    //F14_GIOn(0,0,255);
-    //F14_GIOff();
+  case 4:
     WriteUpper2("3>              ");
     WriteLower2("4>              ");
     for (i=0; i<3; i++) {
@@ -275,10 +284,21 @@ void F14_AttractDisplayCycle(byte Step) {
       *(DisplayLower2+8+2*i+1) = DispPattern2[(HallOfFame.Initials[9+i]-32)*2+1];}
     ShowNumber(15, HallOfFame.Scores[2]);
     ShowNumber(31, HallOfFame.Scores[3]);
-    ActivateTimer(50, 0, ScrollUpper);
-    ActivateTimer(900, 0, ScrollLower2);
-    Step = 0;}
-  ActivateTimer(4000, Step, F14_AttractDisplayCycle);}
+    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
+    Step = 1;
+    break;
+  case 5:                                             // scrolling routine called here to keep track of the timer
+    Timer1 = 0;
+    ScrollUpper(0);
+    return;
+  case 6:
+    Timer2 = 0;
+    ScrollLower2(0);
+    return;}
+  F14_CheckForLockedBalls(0);                          // check for a ball in the outhole
+  Timer0 = ActivateTimer(4000, Step, F14_AttractDisplayCycle);}  // come back for the next 'page'
+
 
 void F14_AttractModeSW(byte Button) {                  // Attract Mode switch behaviour
   if (APC_settings[DebugMode]){
@@ -316,7 +336,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
     if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
       ShowLampPatterns(0);                            // stop lamp animations
-      KillAllTimers();
+      F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
         analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
       else {
@@ -344,6 +364,10 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
         for (byte j=0; j<12; j++) {
           F14_TomcatTargets[i][j]=0;}
         }
+      F14_LockOccupied[0] = 0;
+      F14_LockOccupied[1] = 0;
+      F14_LockOccupied[2] = 0;
+      
       F14_LineOfDeathHandler(1);  // sort the kill lamps out
       F14_RescueTargetHandler(0); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
@@ -718,8 +742,23 @@ void F14_LockHandler(byte Event) {
   static byte locks_available;
 
   if (APC_settings[DebugMode]){
-    Serial.print("Lock Handler called, event =  ");            // print address reference table
+    Serial.print("F14_LockHandler called with event ");            // print address reference table
     Serial.println((byte)Event);
+    Serial.println("-> Pre handle");
+    Serial.print(" -> Lock 1 status = ");
+    Serial.println((byte) F14_LockStatus[Player][0]);
+    Serial.print(" -> Lock 2 status = ");
+    Serial.println((byte) F14_LockStatus[Player][1]);
+    Serial.print(" -> Lock 3 status = ");
+    Serial.println((byte) F14_LockStatus[Player][2]);
+    Serial.print(" -> Lock 1 occupied = ");
+    Serial.println((byte) F14_LockOccupied[0]);
+    Serial.print(" -> Lock 2 occupied = ");
+    Serial.println((byte) F14_LockOccupied[1]);
+    Serial.print(" -> Lock 3 occupied = ");
+    Serial.println((byte) F14_LockOccupied[2]);
+    
+
   }
  
 
@@ -758,13 +797,21 @@ void F14_LockHandler(byte Event) {
       break;
     case 4: // Ball locked in 1
       F14_LockStatus[Player][0]=2;
+      if (F14_LockOccupied[0]==0){
+        InLock++;
+        F14_GiveBall(1);
+      }
+      F14_LockOccupied[0]=1;
       RemoveBlinkLamp(58);
       TurnOnLamp(58);
-      InLock++;
-      F14_GiveBall(1);
       break;
     case 5: // Ball locked in 2
       F14_LockStatus[Player][1]=2;
+      if (F14_LockOccupied[1]==0){
+        InLock++;
+        F14_GiveBall(1);
+      }
+      F14_LockOccupied[1]=1;
       RemoveBlinkLamp(57);
       TurnOnLamp(57);
       InLock++;
@@ -772,6 +819,11 @@ void F14_LockHandler(byte Event) {
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
+      if (F14_LockOccupied[2]==0){
+        InLock++;
+        F14_GiveBall(1);
+      }
+      F14_LockOccupied[2]=1;
       RemoveBlinkLamp(59);
       TurnOnLamp(59);
       InLock++;
@@ -829,11 +881,19 @@ void F14_LockHandler(byte Event) {
             AddBlinkLamp(59,300);
           }
       }
-      
+    case 30:  // lower ramp
+      if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
+        // Play "heads up"
+        ActA_BankSol(7);
+        F14_LockOccupied[2] = 2;
+      }
+      break;
+  
     case 31:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
         ActivateSolenoid(0, 10);
+        F14_LockOccupied[0] = 2;
       }
       ReleaseSolenoid (22);  // Can also release the divertor coil early
       break;
@@ -841,10 +901,17 @@ void F14_LockHandler(byte Event) {
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
         ActA_BankSol(5);
+        F14_LockOccupied[1] = 2;
       }
       ReleaseSolenoid (21);  // Can also release the divertor coil early
       break;
     case 22: // Lock number 1
+      if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
+        F14_LockOccupied[0]=1;
+      }
+      else if (F14_LockOccupied[0]==1) {  // if we already knew a ball was in there, ignore the noisy switch
+        break;
+      }
       switch (F14_LockStatus[Player][0]) {  // check the lock status
         case 0:
           ActivateSolenoid(0, 10);  // if not lit or locked, kick the ball out
@@ -856,6 +923,12 @@ void F14_LockHandler(byte Event) {
           break;
       }
     case 23: // Lock number 2
+      if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
+        F14_LockOccupied[1]=1;
+      }
+      else if (F14_LockOccupied[1]==1) {
+        break;
+      }
       switch (F14_LockStatus[Player][1]) {
         case 0:
           ActA_BankSol(5);
@@ -868,6 +941,14 @@ void F14_LockHandler(byte Event) {
       }
       break;
     case 21: // Lock number 3
+      if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
+        F14_LockOccupied[2]=1;
+        
+      }
+
+      else if (F14_LockOccupied[2]==1) {
+        break;
+      }
       switch (F14_LockStatus[Player][2]) {
         case 0:
           ActA_BankSol(7);
@@ -882,6 +963,23 @@ void F14_LockHandler(byte Event) {
       
 
   }
+  if (APC_settings[DebugMode]){
+    Serial.println("-> Post handle");
+    Serial.print(" -> Lock 1 status = ");
+    Serial.println((byte) F14_LockStatus[Player][0]);
+    Serial.print(" -> Lock 2 status = ");
+    Serial.println((byte) F14_LockStatus[Player][1]);
+    Serial.print(" -> Lock 3 status = ");
+    Serial.println((byte) F14_LockStatus[Player][2]);
+    Serial.print(" -> Lock 1 occupied = ");
+    Serial.println((byte) F14_LockOccupied[0]);
+    Serial.print(" -> Lock 2 occupied = ");
+    Serial.println((byte) F14_LockOccupied[1]);
+    Serial.print(" -> Lock 3 occupied = ");
+    Serial.println((byte) F14_LockOccupied[2]);
+    
+  }
+ 
 }
 
 // Handle bonus and bonus multiplier
@@ -1084,13 +1182,18 @@ void F14_Divertor_Handler(byte Event) {
       else {
         destination_lock = random(3);
       } 
+      if (APC_settings[DebugMode]){
+        Serial.print("F14_Divertor_Handler chose destination ");            // print address reference table
+        Serial.println((byte)destination_lock);
+      }
+  
 
       switch (destination_lock) {
         case 0:
-          ActivateSolenoid(1500,22);
+          ActivateSolenoid(2000,22);
           break;
         case 1:
-          ActivateSolenoid(1500,21);
+          ActivateSolenoid(2000,21);
           break;
         case 2:
           break;
@@ -1456,38 +1559,7 @@ void F14_vUKHandler(byte Event) {
 // 0 = simply eject
 
 
-void F14_RightEjectHandler(byte Event) {
-  switch (Event) {
-    case 0:             // will need expanding when lock logic coded
-      ActA_BankSol(7);
-      break;
-    
-  }
-}
 
-// This handles various things for the centre eject (the one under the shooter lane)
-// The incoming event will specify what the routine is being called for
-// 0 = simply eject
-void F14_CentreEjectHandler(byte Event) {
-  switch (Event) {
-    case 0:             // will need expanding when lock logic coded
-      ActA_BankSol(5);
-      break;
-    
-  }
-}
-
-// This handles various things for the left eject (the one under the shooter lane)
-// The incoming event will specify what the routine is being called for
-// 0 = simply eject
-void F14_LeftEjectHandler(byte Event) {
-  switch (Event) {
-    case 0:             // will need expanding when lock logic coded
-      ActivateSolenoid(0, 10);
-      break;
-    
-  }
-}
 
 void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the moment
   //LEDsetColor(Red, Green, Blue);
