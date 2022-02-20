@@ -409,6 +409,7 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_LineOfDeathHandler(1);
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
+  F14_LaunchBonusHandler(3);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -989,6 +990,34 @@ void F14_LineOfDeathHandler(byte Event) {
           TurnOnLamp(i+101);
       break;
       }
+  }
+}
+
+// The launch bonus is awarded when a left inlane is followed by a shot to the vuk
+// within 2 seconds.  During this time the bonus lamps strobe.
+// Event 0 - enable the bonus
+// Event 1 - score the bonus if applicable
+// Event 2 - timeout
+// Event 3 - reset bonus
+// Event 4 - 
+void F14_LaunchBonusHandler(byte Event) {
+  static byte bonus_enabled = 0;
+  static byte strobe_step = 0;
+  static byte strobe_loop = 0;
+  static byte strobe_timer = 0;
+  static int current_bonus = 50000;
+  return;
+  switch (Event) {
+    case 0:
+      bonus_enabled = 1;
+      strobe_timer = ActivateTimer(100,4,F14_LaunchBonusHandler);
+      break;
+    case 1:
+      Points[Player] += current_bonus;
+      if (current_bonus < 500000) {
+        current_bonus += 50000;
+      }
+
   }
 }
 
