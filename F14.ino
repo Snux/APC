@@ -27,7 +27,7 @@ const byte F14_OutholeKicker = 1;                      // solenoid number of the
 const byte F14_ShooterLaneFeeder = 2;                  // solenoid number of the shooter lane feeder
 const byte F14_InstalledBalls = 4;                     // number of balls installed in the game
 const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
-unsigned int F14_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,50,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
+unsigned int F14_SolTimes[32] = {50,50,50,50,50,50,30,50,50,50,50,50,50,50,50,0,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
 
 
 #define F14set_OutholeSwitch 0
@@ -242,7 +242,7 @@ void F14_AttractDisplayCycle(byte Step) {
     ScrollLower2(100);
     return;
   case 1:                                             // attract mode title 'page'
-    WriteUpper2("APC BASE CODE   ");
+    WriteUpper2(" F-14   TOMCAT");
     Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
     WriteLower2("                ");
     Timer2 = ActivateTimer(1000, 6, F14_AttractDisplayCycle);
@@ -628,7 +628,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_AddPlayer();
     break;
   case 20:  // ramp entry
-    F14_Divertor_Handler(0);
+    F14_DivertorHandler(0);
     break;
   case 21:                                            //right eject
   case 22:                                            //left
@@ -735,6 +735,8 @@ void F14_TomcatTargetLamps() {
 // 4 lock ball in 1
 // 5 lock ball in 2
 // 6 lock ball in 3
+// 7 lamp/lock reset for next player
+// 8 start multiball
 // 31 middle ramp switch
 // 32 lower ramp switch
 // 21-23 ball landed in lock
@@ -885,27 +887,49 @@ void F14_LockHandler(byte Event) {
             AddBlinkLamp(59,300);
           }
       }
+      break;
+    case 8:  // start multiball
+      Multiballs = 4;
+      InLock = 0;
+      ActivateSolenoid(0,16);  // switch the beacons on
+      ActivateSolenoid(0,10);  // Clear lock 1
+      ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
+      ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
+      for (byte i=0; i< 3; i++ ) { // reset status
+        F14_LockStatus[Player][i]=0;
+        F14_LockOccupied[i]=0;
+      }
+      F14_LockHandler(7);  // update the lamps
+      WriteLower2("MULTI   BALL");
+      ScrollLower2(1);
+      break;
     case 30:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
+        WriteUpper2("  HEADS UP    ");
+        ShowMessage(1);
         ActA_BankSol(7);
-        F14_LockOccupied[2] = 2;
+        F14_LockOccupied[2] = 2;  // Let the lock handler know we're expecting a replacement ball
       }
       break;
   
     case 31:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
+        WriteUpper2("  HEADS UP    ");
+        ShowMessage(1);
         ActivateSolenoid(0, 10);
-        F14_LockOccupied[0] = 2;
+        F14_LockOccupied[0] = 2; // Let the lock handler know we're expecting a replacement ball
       }
       ReleaseSolenoid (22);  // Can also release the divertor coil early
       break;
     case 32:  // upper ramp
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
+        WriteUpper2("  HEADS UP    ");
+        ShowMessage(1);
         ActA_BankSol(5);
-        F14_LockOccupied[1] = 2;
+        F14_LockOccupied[1] = 2; // Let the lock handler know we're expecting a replacement ball
       }
       ReleaseSolenoid (21);  // Can also release the divertor coil early
       break;
@@ -1162,7 +1186,7 @@ void F14_SpinnerHandler(byte Event) {
 // Decides where to route the ball based on the status of the locks
 // Event 0 - incoming ball
 // Event 1 - called when timer expires
-void F14_Divertor_Handler(byte Event) {
+void F14_DivertorHandler(byte Event) {
   byte destination_lock;
 
   
@@ -1193,7 +1217,7 @@ void F14_Divertor_Handler(byte Event) {
         destination_lock = random(3);
       } 
       if (APC_settings[DebugMode]){
-        Serial.print("F14_Divertor_Handler chose destination ");            // print address reference table
+        Serial.print("F14_DivertorHandler chose destination ");            // print address reference table
         Serial.println((byte)destination_lock);
       }
   
@@ -1554,12 +1578,18 @@ void F14_RescueKickerHandler(byte Event){
 void F14_vUKHandler(byte Event) {
   switch (Event) {
     case 0:             // will need expanding when lock logic coded
-      PlayFlashSequence((byte *)F14_LockedOnSeq);
-      ActivateTimer(2000,1,F14_vUKHandler);
+      if (F14_LockStatus[Player][0]==2  && F14_LockStatus[Player][1]==2 && F14_LockStatus[Player][2]==2) {
+        F14_LockHandler(8);
+        ActivateTimer(2000,1,F14_vUKHandler);
+      }
+      else {  // just flash the lamps and send on its way
+        PlayFlashSequence((byte *)F14_LockedOnSeq);
+        ActivateTimer(2000,1,F14_vUKHandler);
+      }
       break;
     case 1:  // Timer over, send the ball on its way
       ActA_BankSol(3);
-      F14_Divertor_Handler(0);   // let the divertor know a ball is on the way
+      F14_DivertorHandler(0);   // let the divertor know a ball is on the way
       break;
   }
 }
@@ -1621,15 +1651,15 @@ void F14_HandleLock(byte Balls) {
 
 void F14_BallEnd(byte Event) {
   byte BallsInTrunk = F14_CountBallsInTrunk();
-  if ((BallsInTrunk == 5)||(BallsInTrunk < game_settings[F14set_InstalledBalls]+1-Multiballs-InLock)) {
+  if ((BallsInTrunk == 5)||(BallsInTrunk < 4+1-Multiballs-InLock)) {
     InLock = 0;
 //    if (Multiballs == 1) {
 //      for (i=0; i<3; i++) {                           // Count your locked balls here
 //        if (Switch[41+i]) {
 //          InLock++;}}}
     WriteLower(" BALL   ERROR   ");
-    if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // ball still in outhole?
-      ActA_BankSol(game_settings[F14set_OutholeKicker]); // make the coil a bit stronger
+    if (QuerySwitch(10)) { // ball still in outhole?
+      ActA_BankSol(1); // make the coil a bit stronger
       ActivateTimer(2000, Event, F14_BallEnd);}        // and come back in 2s
     else {
       if (Event < 11) {                               // have I been here already?
@@ -1641,15 +1671,25 @@ void F14_BallEnd(byte Event) {
         F14_ClearOuthole(0);}}}
   else {
     switch (Multiballs) {
-    case 3:                                           // goto 2 ball multiball
-      Multiballs = 2;
+    case 4:                                           // goto 3 ball multiball
+      Multiballs = 3;
       if (BallsInTrunk != 1) {                        // not 1 ball in trunk
         ActivateTimer(1000, 0, F14_BallEnd);}          // check again later
       else {
         BlockOuthole = false;}                        // remove outhole block
       break;
+    case 3:                                           // goto 2 ball multiball
+      Multiballs = 2;
+      if (BallsInTrunk != 2) {                        // not 1 ball in trunk
+        ActivateTimer(1000, 0, F14_BallEnd);}          // check again later
+      else {
+        BlockOuthole = false;}                        // remove outhole block
+      break;
+    
     case 2:                                           // end multiball
       Multiballs = 1;
+      ReleaseSolenoid(16); // switch off the beacons
+      WriteLower("                ");
       if (BallsInTrunk == game_settings[F14set_InstalledBalls]) { // all balls in trunk?
         ActivateTimer(1000, 0, F14_BallEnd);}
       else {
