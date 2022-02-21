@@ -757,6 +757,10 @@ void F14_LockHandler(byte Event) {
     Serial.println((byte) F14_LockOccupied[1]);
     Serial.print(" -> Lock 3 occupied = ");
     Serial.println((byte) F14_LockOccupied[2]);
+    Serial.print(" -> InLock = ");
+    Serial.println((byte) InLock);
+    Serial.print(" -> MultiBalls = ");
+    Serial.println((byte) Multiballs);
     
 
   }
@@ -814,8 +818,8 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[1]=1;
       RemoveBlinkLamp(57);
       TurnOnLamp(57);
-      InLock++;
-      F14_GiveBall(1);
+      //InLock++;
+      //F14_GiveBall(1);
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
@@ -826,8 +830,8 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[2]=1;
       RemoveBlinkLamp(59);
       TurnOnLamp(59);
-      InLock++;
-      F14_GiveBall(1);
+      //InLock++;
+      //F14_GiveBall(1);
       break;
     // Reset lamps/locks for next player
     // If a lock has status 2 (ball locked) but there is no ball in the lock
@@ -908,6 +912,7 @@ void F14_LockHandler(byte Event) {
     case 22: // Lock number 1
       if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
         F14_LockOccupied[0]=1;
+        break;
       }
       else if (F14_LockOccupied[0]==1) {  // if we already knew a ball was in there, ignore the noisy switch
         break;
@@ -925,6 +930,7 @@ void F14_LockHandler(byte Event) {
     case 23: // Lock number 2
       if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
         F14_LockOccupied[1]=1;
+        break;
       }
       else if (F14_LockOccupied[1]==1) {
         break;
@@ -943,7 +949,7 @@ void F14_LockHandler(byte Event) {
     case 21: // Lock number 3
       if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
         F14_LockOccupied[2]=1;
-        
+        break;
       }
 
       else if (F14_LockOccupied[2]==1) {
@@ -977,6 +983,10 @@ void F14_LockHandler(byte Event) {
     Serial.println((byte) F14_LockOccupied[1]);
     Serial.print(" -> Lock 3 occupied = ");
     Serial.println((byte) F14_LockOccupied[2]);
+    Serial.print(" -> InLock = ");
+    Serial.println((byte) InLock);
+    Serial.print(" -> MultiBalls = ");
+    Serial.println((byte) Multiballs);
     
   }
  
