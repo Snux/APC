@@ -690,6 +690,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 59: // left inlane
     F14_OrbitHandler(2);
+    F14_LaunchBonusHandler(0);
     // Code for launch bonus
     break;
   case 60:  //right inlane
@@ -699,9 +700,13 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_RescueKickerHandler(1);
     break;
   case 65: // left slingshot
+    Points[Player] += 10;
+    ShowPoints(Player);
     ActivateSolenoid(0, 17);
     break;
   case 66: // right slingshot
+    Points[Player] += 10;
+    ShowPoints(Player);
     ActivateSolenoid(0, 18);
     break;
   case 68: // pop bumper
@@ -726,6 +731,26 @@ void F14_TomcatTargetLamps() {
     }
   }
 }
+
+// Version of AddBlinkLamp that schedules immediately
+void AddBlinkLampImmediate(byte Lamp, unsigned int Period) {
+  RemoveBlinkLamp(Lamp);                              // if the lamp is already blinking then stop it
+  if (Period) {                                       // Only if the Period is not 0
+    byte a = 0;
+    byte x = 0;
+    byte b = 0;
+    bool Flag = false;
+    while (BlinkTimer[x]) {                         // look for a free timer slot
+        x++;
+        if (x > 65) {                                 // max 64 blink timers possible (starting from 1)
+          ErrorHandler(6,0,Lamp);}}                   // show error 6
+      BlinkingLamps[x][0] = Lamp;                     // add the lamp
+      BlinkingNo[x] = 1;                              // set the number of lamps for this timer to 1
+      BlinkState[x] = true;                           // start with lamps on
+      BlinkPeriod[x] = Period;
+      BlinkTimers++;                                  // increase the number of blink timers
+      BlinkTimer[x] = ActivateTimer(Period, x, BlinkLamps);}} // start a timer and store it's number
+
 
 // Lock handler
 // Event 0 - TOMCAT completed
@@ -767,7 +792,7 @@ void F14_LockHandler(byte Event) {
 
   }
  
-
+  // Check how many locks we have spare
   locks_available = 0;
   for (byte i=0; i<3; i++) {
     if (F14_LockStatus[Player][i]==0) {
@@ -776,7 +801,7 @@ void F14_LockHandler(byte Event) {
   }
 
   switch (Event) {
-    case 0:  // Completed TOMCAT, need to light a lock
+    case 0:  // Completed TOMCAT, need to light a lock.  SHould make this more random.
       if (!locks_available)
         return;
       if (F14_LockStatus[Player][0]==0) {
@@ -888,19 +913,25 @@ void F14_LockHandler(byte Event) {
           }
       }
       break;
+      if (locks_available < 3) { // The "Lites Lock On" lamp
+        TurnOnLamp(1);
+      }
+      else {
+        TurnOffLamp(1);
+      }
     case 8:  // start multiball
-      Multiballs = 4;
-      InLock = 0;
+      Multiballs = 4; // There will be 4 on the playfield
+      InLock = 0; // and none in the locks
       ActivateSolenoid(0,16);  // switch the beacons on
       ActivateSolenoid(0,10);  // Clear lock 1
       ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
       ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
-      for (byte i=0; i< 3; i++ ) { // reset status
+      for (byte i=0; i< 3; i++ ) { // reset status of locks
         F14_LockStatus[Player][i]=0;
         F14_LockOccupied[i]=0;
       }
       F14_LockHandler(7);  // update the lamps
-      WriteLower2("MULTI   BALL");
+      WriteLower2("MULTI   BALL");  // ugly placeholder
       ScrollLower2(1);
       break;
     case 30:  // lower ramp
@@ -1142,12 +1173,84 @@ void F14_LaunchBonusHandler(byte Event) {
   switch (Event) {
     case 0:
       bonus_enabled = 1;
-      strobe_timer = ActivateTimer(100,4,F14_LaunchBonusHandler);
+      for (byte i=0; i<8; i++) {
+        TurnOffLamp(17+i); // turn off the bonus lamps
+      }
+      strobe_loop=0;
+      strobe_step=0;
+      strobe_timer = ActivateTimer(100,3,F14_LaunchBonusHandler);
+      
       break;
     case 1:
-      Points[Player] += current_bonus;
-      if (current_bonus < 500000) {
-        current_bonus += 50000;
+      if (bonus_enabled) {
+        Points[Player] += current_bonus;
+        if (current_bonus < 500000) {
+          current_bonus += 50000;
+        }
+      }
+      break;
+    case 2:
+      bonus_enabled = 0;
+      strobe_timer = 0;
+      F14_BonusHandler(2);  // reset the bonus lamps
+      break;
+    case 3:
+      switch (strobe_step) {
+        case 0:
+          TurnOnLamp(17);
+          break;
+        case 1:
+          TurnOnLamp(18);
+          break;
+        case 2:
+          TurnOffLamp(17);
+          TurnOnLamp(19);
+          break;
+        case 3:
+          TurnOffLamp(18);
+          TurnOnLamp(20);
+          break;
+        case 4:
+          TurnOffLamp(19);
+          TurnOnLamp(21);
+          break;
+        case 5:
+          TurnOffLamp(20);
+          TurnOnLamp(22);
+          break;
+        case 6:
+          TurnOffLamp(21);
+          TurnOnLamp(23);
+          break;
+        case 7:
+          TurnOffLamp(22);
+          TurnOnLamp(48);
+          break;
+        case 8:
+          TurnOffLamp(23);
+          TurnOnLamp(111);
+          break;
+        case 9:
+          TurnOffLamp(48);
+          TurnOnLamp(40);
+          break;
+        case 10:
+          TurnOffLamp(111);
+          break;
+        case 11:
+          TurnOffLamp(40);
+          break;
+      } 
+      strobe_step++;
+      if (strobe_step == 12)   {
+        strobe_step=0;
+        strobe_loop++;
+      }
+      if (strobe_loop==10) {
+        F14_LaunchBonusHandler(2); // switch it off
+      }
+      else {
+        strobe_timer = ActivateTimer(100,3,F14_LaunchBonusHandler);
       }
 
   }
@@ -1183,9 +1286,9 @@ void F14_SpinnerHandler(byte Event) {
 
 // Divertor handler
 // Called when a ball is about to enter the ramp with the 2 diverters
+// Called by the switch just above the shooter lane and also the vUK eject
 // Decides where to route the ball based on the status of the locks
 // Event 0 - incoming ball
-// Event 1 - called when timer expires
 void F14_DivertorHandler(byte Event) {
   byte destination_lock;
 
