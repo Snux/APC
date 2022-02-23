@@ -15,7 +15,8 @@ byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
-
+char *BlinkUpper;
+char *BlinkLower;
 
 
 
@@ -433,7 +434,8 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_LineOfDeathHandler(1);
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
-  F14_LaunchBonusHandler(3);
+  F14_LaunchBonusHandler(4);
+  //F14_LaunchBonusHandler(3);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -679,6 +681,7 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 52:
   case 53:
   case 54:
+    F14_HotStreakHandler(1);
     F14_TomcatTargetHandler(0,Event-43);
     break;
   // Line of death (Yagov)
@@ -689,8 +692,8 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_OrbitHandler(1);
     break;
   case 59: // left inlane
-    F14_OrbitHandler(2);
-    F14_LaunchBonusHandler(0);
+    F14_OrbitHandler(2);  // light the right bonus x lane
+    F14_LaunchBonusHandler(0); // launch bonus
     // Code for launch bonus
     break;
   case 60:  //right inlane
@@ -710,12 +713,117 @@ void F14_GameMain(byte Event) {                        // game switch events
     ActivateSolenoid(0, 18);
     break;
   case 68: // pop bumper
+    Points[Player] += 100;
+    ShowPoints(Player);
     ActivateSolenoid(0, 20);
     break;
   default:
-    if (Event == game_settings[F14set_OutholeSwitch]) {
+    if (Event == 10) {
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
+
+// After an orbit loop is completed, the hot streak lamp lights for a short time
+// Hits to the top TOMCAT targets score 10,000 -> 100,000 and reset the timer
+// Event 0 - enable Hotstreak
+// Event 1 - score hotstreak if applicable
+// Event 2 - hotstreak timeout
+void F14_HotStreakHandler(byte Event) {
+  static byte streak_timer = 0;
+  static byte streak_display_timer = 0;
+  static byte streak_score = 0;
+  static byte streak_step = 0;
+  
+  switch(Event) {
+    case 0:
+      if (streak_timer) {  // if already running, ignore
+        break;
+      }
+      else {
+        streak_score = 0;
+        TurnOnLamp(3); // Hot Streak
+        streak_timer = ActivateTimer(2000,2,F14_HotStreakHandler);  // for 2 seconds only
+      }
+      break;
+    case 1:
+      if (!streak_timer) {  // if not running, just exit
+        break;
+      }
+      
+      KillTimer(streak_timer); // Kill existing timer
+      streak_timer = 0;
+      if (streak_score < 10) {
+        streak_score ++;
+      }
+      SwitchDisplay(0);  // over to buffer 2
+     
+      streak_timer = ActivateTimer(3000,2,F14_HotStreakHandler);  // reset the timer back to 2 seconds
+      Points[Player] += streak_score * 10000;
+      if (streak_score == 1) {  // if we just started scoring, kick off the display routine
+        F14_HotStreakHandler(3);
+      }
+      break;
+    case 2:  // Overall streak timer has run out, shut it down
+      streak_timer = 0;
+      SwitchDisplay(1);
+      streak_score = 0;
+      streak_step = 0;
+      TurnOffLamp(3);
+      if (streak_display_timer) {
+        KillTimer(streak_display_timer);  // Kill the timer that was flashing the display
+        streak_display_timer = 0;
+      }
+      break;
+    case 3:  // flash the display 
+      switch (streak_step) {
+        case 0:
+          WriteUpper2("  HOT         ");
+          WriteLower2("              ");
+          ShowNumber(30,streak_score*10000);
+          streak_display_timer = ActivateTimer(300,3,F14_HotStreakHandler);
+          streak_step = 1;
+          break;
+        case 1:
+          WriteUpper2("        STREAK");
+          WriteLower2("              ");
+          ShowNumber(22,streak_score*10000);
+          streak_display_timer = ActivateTimer(300,3,F14_HotStreakHandler);
+          streak_step = 0;
+          break;
+      }
+
+  }
+}
+
+void F14_BlinkMessage(byte Loops, char *message1, char* message2) {
+  BlinkUpper=message1;
+  BlinkLower=message2;
+  F14_BlinkMessageRun(Loops);
+}
+
+void F14_BlinkMessageRun(byte Loops) {
+  static byte blink_message_timer = 0;
+  
+  SwitchDisplay(0);
+  switch (Loops) {
+    case 0:
+      SwitchDisplay(1);
+      blink_message_timer = 0;
+      break;
+    default:
+      if (Loops % 2 == 0) {
+        WriteUpper2(BlinkUpper);
+        WriteLower2(BlinkLower);
+        blink_message_timer = ActivateTimer(500,Loops-1,F14_BlinkMessageRun);
+      }
+      else {
+        WriteUpper2("                ");
+        WriteLower2("                ");
+        blink_message_timer = ActivateTimer(250,Loops-1,F14_BlinkMessageRun);
+      }
+      
+  }
+
+}
 
 // Update the T-O-M-C-A-T lamps based on the status of the shots
 void F14_TomcatTargetLamps() {
@@ -767,6 +875,7 @@ void AddBlinkLampImmediate(byte Lamp, unsigned int Period) {
 // 21-23 ball landed in lock
 void F14_LockHandler(byte Event) {
   static byte locks_available;
+  static char conv[5];
 
   if (APC_settings[DebugMode]){
     Serial.print("F14_LockHandler called with event ");            // print address reference table
@@ -804,6 +913,9 @@ void F14_LockHandler(byte Event) {
     case 0:  // Completed TOMCAT, need to light a lock.  SHould make this more random.
       if (!locks_available)
         return;
+      
+      F14_BlinkMessage(10, "TOMCAT  TOMCAT","              ");
+
       if (F14_LockStatus[Player][0]==0) {
         F14_LockHandler(1);
       }
@@ -1107,7 +1219,10 @@ void F14_BonusHandler(byte Event){
 // Handle the line of death kickback
 // Event 0 - switch activated, so kick the ball back and increment the kills
 // Event 1 - just light the correct lamps based on the kill count (when switching players for example)
+// Event 2 - 
 void F14_LineOfDeathHandler(byte Event) {
+  static int kill_step = 0;
+  static int kill_loop = 0;
   switch (Event){
     case 0:
       ActivateSolenoid(0, 12);
@@ -1115,7 +1230,7 @@ void F14_LineOfDeathHandler(byte Event) {
         return;
       F14_Kills[Player]++;
       TurnOnLamp(101+F14_Kills[Player]);
-      F14_BonusHandler(1);
+      SwitchDisplay(0);  // use the second buffer
       switch (F14_Kills[Player]) {
         case 1:
           WriteUpper2(" ALPHA  KILL  ");  
@@ -1140,10 +1255,9 @@ void F14_LineOfDeathHandler(byte Event) {
           break;
       }
       WriteLower2("              ");
-      //ShowNumber(15, PB_SkillMultiplier);                 // show multiplier
-      ShowMessage(2);
-  
-
+      kill_step = 0;
+      kill_loop = 0;
+      ActivateTimer(200,2,F14_LineOfDeathHandler);
       break;
     case 1:
       for (byte i=1; i < 8; i++) {
@@ -1151,27 +1265,76 @@ void F14_LineOfDeathHandler(byte Event) {
           TurnOffLamp(i+101);
         else
           TurnOnLamp(i+101);
+      
+      }
       break;
+    case 2:
+      switch(kill_step) {
+        case 0:
+          WriteLower2("      2 5       ");
+          break;
+        case 1:
+          WriteLower2("     22 55      ");
+          break;
+        case 2:
+          WriteLower2("    222 555     ");
+          break;
+        case 3:
+          WriteLower2("   222   555    ");
+          break;
+        case 4:
+          WriteLower2("  222     555   ");
+          break;
+        case 5:
+          WriteLower2(" 222       555  ");
+          break;              
+        case 6:
+          WriteLower2("222         555 ");
+          break;              
+        case 7:
+          WriteLower2("22           55 ");
+          break;              
+        case 8:
+          WriteLower2("2             5 ");
+          break;              
+        case 9:
+          WriteLower2("                ");
+          break;
+      }
+      kill_step++;
+      if (kill_step==10) {
+        kill_loop++;
+        kill_step=0;
+      }
+      if (kill_loop<5) {
+        ActivateTimer(40,2,F14_LineOfDeathHandler);
+      }
+      else {
+        SwitchDisplay(1);  // all done, back to normal
       }
   }
 }
+
 
 // The launch bonus is awarded when a left inlane is followed by a shot to the vuk
 // within 2 seconds.  During this time the bonus lamps strobe.
 // Event 0 - enable the bonus
 // Event 1 - score the bonus if applicable
 // Event 2 - timeout
-// Event 3 - reset bonus
-// Event 4 - 
+// Event 3 - run the lamp effect
+// Event 4 - reset between players
 void F14_LaunchBonusHandler(byte Event) {
   static byte bonus_enabled = 0;
   static byte strobe_step = 0;
   static byte strobe_loop = 0;
   static byte strobe_timer = 0;
   static int current_bonus = 50000;
-  return;
+  
   switch (Event) {
     case 0:
+      if (bonus_enabled) {
+        break;
+      }
       bonus_enabled = 1;
       for (byte i=0; i<8; i++) {
         TurnOffLamp(17+i); // turn off the bonus lamps
@@ -1187,15 +1350,20 @@ void F14_LaunchBonusHandler(byte Event) {
         if (current_bonus < 500000) {
           current_bonus += 50000;
         }
+        WriteUpper2(" LAUNCH  BONUS ");
+        ShowNumber(30,current_bonus);
+        ShowNumber(22,current_bonus);
+        ShowMessage(4);
+        strobe_loop = 10;  // this will shut down the timer
       }
       break;
     case 2:
       bonus_enabled = 0;
       strobe_timer = 0;
-      F14_BonusHandler(2);  // reset the bonus lamps
+      F14_BonusHandler(2);  // reset the bonus lamps after we've been strobing them
       break;
     case 3:
-      switch (strobe_step) {
+      switch (strobe_step) {  // a little work could remove this monster case statement and calculate it
         case 0:
           TurnOnLamp(17);
           break;
@@ -1240,19 +1408,22 @@ void F14_LaunchBonusHandler(byte Event) {
         case 11:
           TurnOffLamp(40);
           break;
-      } 
+      }
       strobe_step++;
       if (strobe_step == 12)   {
         strobe_step=0;
         strobe_loop++;
       }
-      if (strobe_loop==10) {
+      if (strobe_loop>9) {
         F14_LaunchBonusHandler(2); // switch it off
       }
       else {
-        strobe_timer = ActivateTimer(100,3,F14_LaunchBonusHandler);
+        strobe_timer = ActivateTimer(20,3,F14_LaunchBonusHandler);
       }
-
+      break;
+    case 4:
+      current_bonus = 50000;
+      break;
   }
 }
 
@@ -1526,17 +1697,21 @@ void F14_OrbitHandler(byte Event) {
       break;
     case 2:
       right_bonusX_lit = 1;
+      F14_HotStreakHandler(0);
       AddBlinkLamp(55,300);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
+        orbit_bonusx_timer = 0;
       }
       orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
       break;
     case 3:
       left_bonusX_lit = 1;
+      F14_HotStreakHandler(0);
       AddBlinkLamp(32,300);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
+        orbit_bonusx_timer = 0;
       }
       orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
       
@@ -1548,6 +1723,7 @@ void F14_OrbitHandler(byte Event) {
       AddBlinkLamp(55,300);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
+        orbit_bonusx_timer = 0;
       }
       orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
       break;
@@ -1679,6 +1855,9 @@ void F14_RescueKickerHandler(byte Event){
 // The incoming event will specify what the routine is being called for
 // 0 = simply eject
 void F14_vUKHandler(byte Event) {
+  
+  F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
+
   switch (Event) {
     case 0:             // will need expanding when lock logic coded
       if (F14_LockStatus[Player][0]==2  && F14_LockStatus[Player][1]==2 && F14_LockStatus[Player][2]==2) {
