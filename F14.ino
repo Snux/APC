@@ -794,36 +794,7 @@ void F14_HotStreakHandler(byte Event) {
   }
 }
 
-void F14_BlinkMessage(byte Loops, char *message1, char* message2) {
-  BlinkUpper=message1;
-  BlinkLower=message2;
-  F14_BlinkMessageRun(Loops);
-}
 
-void F14_BlinkMessageRun(byte Loops) {
-  static byte blink_message_timer = 0;
-  
-  SwitchDisplay(0);
-  switch (Loops) {
-    case 0:
-      SwitchDisplay(1);
-      blink_message_timer = 0;
-      break;
-    default:
-      if (Loops % 2 == 0) {
-        WriteUpper2(BlinkUpper);
-        WriteLower2(BlinkLower);
-        blink_message_timer = ActivateTimer(500,Loops-1,F14_BlinkMessageRun);
-      }
-      else {
-        WriteUpper2("                ");
-        WriteLower2("                ");
-        blink_message_timer = ActivateTimer(250,Loops-1,F14_BlinkMessageRun);
-      }
-      
-  }
-
-}
 
 // Update the T-O-M-C-A-T lamps based on the status of the shots
 void F14_TomcatTargetLamps() {
@@ -914,7 +885,7 @@ void F14_LockHandler(byte Event) {
       if (!locks_available)
         return;
       
-      F14_BlinkMessage(10, "TOMCAT  TOMCAT","              ");
+      F14_LockAnimation(0);  // move the display animation elsewhere, this function already big enough :)
 
       if (F14_LockStatus[Player][0]==0) {
         F14_LockHandler(1);
@@ -957,8 +928,6 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[1]=1;
       RemoveBlinkLamp(57);
       TurnOnLamp(57);
-      //InLock++;
-      //F14_GiveBall(1);
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
@@ -969,8 +938,6 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[2]=1;
       RemoveBlinkLamp(59);
       TurnOnLamp(59);
-      //InLock++;
-      //F14_GiveBall(1);
       break;
     // Reset lamps/locks for next player
     // If a lock has status 2 (ball locked) but there is no ball in the lock
@@ -1158,6 +1125,112 @@ void F14_LockHandler(byte Event) {
   }
  
 }
+
+// Run the display animation when a lock is lit
+// Event 0 - run the animation
+// Event 1 - kill the animation early
+void F14_LockAnimation(byte Event) {
+
+static byte display_step=0;
+static byte display_step_timer = 0;
+
+
+
+switch (Event) {
+  case 0:
+    if (!display_step_timer) {
+      display_step = 2;
+      SwitchDisplay(0);  // second buffer
+      WriteLower2("              ");
+      WriteUpper2("              ");
+      display_step_timer = ActivateTimer(100, 2, F14_LockAnimation);
+    }
+    break;
+
+  case 2:
+    WriteUpper2("      <>      ");
+    break;
+  case 3:
+    WriteUpper2("     <<>>     ");
+    break;
+  case 4:
+    WriteUpper2("    <<<>>>    ");
+    break;
+  case 5:
+    WriteUpper2("   <<<  >>>   ");
+    break;
+  case 6:
+    WriteUpper2("  <<<    >>>  ");
+    break;
+  case 7:
+    WriteUpper2(" <<<      >>> ");
+    break;
+  case 8:
+    WriteUpper2("<<<        >>>");
+    break;
+  case 9:
+    WriteUpper2("<<          >>");
+    break;
+  case 10:
+    WriteUpper2("<            >");
+    break;
+  case 11:
+    WriteUpper2("              ");
+    break;
+  case 12:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 13:
+    WriteUpper2("              ");
+    break;
+  case 14:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 15:
+    WriteUpper2("              ");
+    break;
+  case 16:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 17:
+    WriteUpper2("              ");
+    break;
+  case 18:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 19:
+    WriteUpper2("              ");
+    break;
+  case 20:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 21:
+    WriteUpper2("              ");
+    break;
+  case 99:
+    if (display_step_timer) {
+      KillTimer(display_step_timer);
+    }
+    display_step_timer = 0;
+    //display_step = 0;
+    SwitchDisplay(1);
+    break;
+  }
+  
+  if (Event > 21) {
+    //display_step = 0;
+    display_step_timer = 0;
+    SwitchDisplay(1);
+  }
+  else if (Event > 11) {
+    display_step_timer = ActivateTimer(200,Event + 1, F14_LockAnimation);
+  }
+  else if (Event > 1) {
+    display_step_timer = ActivateTimer(100,Event + 1, F14_LockAnimation);
+  }
+  
+}
+
 
 // Handle bonus and bonus multiplier
 // Event 0 - increment bonus
