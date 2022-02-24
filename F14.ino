@@ -5,7 +5,7 @@ const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54
 const byte F14_1to6LampNumbers[6] = {116,115,114,113,110,112};
 const byte F14_1to6SwitchNumbers[6] = {43,42,41,44,45,46};
 
-const byte F14_LockedOnSeq[23] = {25,10,26,10,27,10,28,10,29,10,30,10,29,10,28,10,27,10,26,10,25,10,0};
+const byte F14_LockedOnSeq[23] = {25,5,26,5,27,5,28,5,29,5,30,5,29,5,28,5,27,5,26,5,25,5,0};
 
 
 byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
@@ -639,7 +639,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;  
   case 24:    //vuk
    
-    ActivateTimer(200, 0, F14_vUKHandler);
+    F14_vUKHandler(0);
     break;
   case 25:  // left rescue target
     F14_RescueTargetHandler(2);
@@ -699,6 +699,7 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 60:  //right inlane
     F14_OrbitHandler(3);
     // Code whatever that does
+    break;
   case 61:
     F14_RescueKickerHandler(1);
     break;
@@ -885,7 +886,7 @@ void F14_LockHandler(byte Event) {
       if (!locks_available)
         return;
       
-      F14_LockAnimation(0);  // move the display animation elsewhere, this function already big enough :)
+      F14_AnimationHandler(2,0);  // lock is lit animation
 
       if (F14_LockStatus[Player][0]==0) {
         F14_LockHandler(1);
@@ -910,34 +911,43 @@ void F14_LockHandler(byte Event) {
       AddBlinkLamp(59,300);
       break;
     case 4: // Ball locked in 1
-      F14_LockStatus[Player][0]=2;
-      if (F14_LockOccupied[0]==0){
+      F14_LockStatus[Player][0]=2;  // set the status
+      if (F14_LockOccupied[0]==0){  // if the lock didn't have a ball in, then we need to issue another one
         InLock++;
-        F14_GiveBall(1);
+        ActivateTimer(1000,1,F14_GiveBall);
+        //F14_GiveBall(1);
       }
-      F14_LockOccupied[0]=1;
+      F14_LockOccupied[0]=1;  // Set the lock as occupied
       RemoveBlinkLamp(58);
       TurnOnLamp(58);
+      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LockHandler(10);
       break;
     case 5: // Ball locked in 2
       F14_LockStatus[Player][1]=2;
       if (F14_LockOccupied[1]==0){
         InLock++;
-        F14_GiveBall(1);
+        ActivateTimer(1000,1,F14_GiveBall);
+        //F14_GiveBall(1);
       }
       F14_LockOccupied[1]=1;
       RemoveBlinkLamp(57);
       TurnOnLamp(57);
+      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LockHandler(10);
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
       if (F14_LockOccupied[2]==0){
         InLock++;
-        F14_GiveBall(1);
+        ActivateTimer(1000,1,F14_GiveBall);
+        //F14_GiveBall(1);
       }
       F14_LockOccupied[2]=1;
       RemoveBlinkLamp(59);
       TurnOnLamp(59);
+      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LockHandler(10);
       break;
     // Reset lamps/locks for next player
     // If a lock has status 2 (ball locked) but there is no ball in the lock
@@ -998,20 +1008,36 @@ void F14_LockHandler(byte Event) {
       else {
         TurnOffLamp(1);
       }
-    case 8:  // start multiball
+      F14_LockHandler(10); // beacon check
+      break;
+    case 8:  // multiball intro
+      F14_AnimationHandler(3,0);   // Flashing stuff, will get called back with Event 9 when done.
+      break;
+    case 9:  // start multiball
       Multiballs = 4; // There will be 4 on the playfield
       InLock = 0; // and none in the locks
-      ActivateSolenoid(0,16);  // switch the beacons on
+      TurnOffLamp(47); // release
       ActivateSolenoid(0,10);  // Clear lock 1
       ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
       ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
+      ActivateTimer(2000,2,F14_vUKHandler); // Then the vUK can clear the ball there
       for (byte i=0; i< 3; i++ ) { // reset status of locks
         F14_LockStatus[Player][i]=0;
         F14_LockOccupied[i]=0;
       }
       F14_LockHandler(7);  // update the lamps
-      WriteLower2("MULTI   BALL");  // ugly placeholder
+      //WriteLower2("MULTI   BALL");  // ugly placeholder
       ScrollLower2(1);
+      break;
+    case 10: // check if we need to switch the beacon on
+      if (F14_LockStatus[Player][0]==2  && F14_LockStatus[Player][1]==2 && F14_LockStatus[Player][2]==2) {
+        ActivateSolenoid(0,16);  // switch the beacons on
+        TurnOnLamp(47); // release
+      }
+      else {
+        ReleaseSolenoid(16);
+        TurnOffLamp(47); // release
+      }
       break;
     case 30:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
@@ -1053,7 +1079,8 @@ void F14_LockHandler(byte Event) {
       }
       switch (F14_LockStatus[Player][0]) {  // check the lock status
         case 0:
-          ActivateSolenoid(0, 10);  // if not lit or locked, kick the ball out
+          ActivateTimer(1000,10,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+          
           break;
         case 1:
           F14_LockHandler(4);  // If lit, lock the ball
@@ -1071,7 +1098,8 @@ void F14_LockHandler(byte Event) {
       }
       switch (F14_LockStatus[Player][1]) {
         case 0:
-          ActA_BankSol(5);
+          ActivateTimer(1000,5,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+          //ActA_BankSol(5);
           break;
         case 1:
           F14_LockHandler(5);
@@ -1091,7 +1119,8 @@ void F14_LockHandler(byte Event) {
       }
       switch (F14_LockStatus[Player][2]) {
         case 0:
-          ActA_BankSol(7);
+          ActivateTimer(1000,7,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+          //ActA_BankSol(7);
           break;
         case 1:
           F14_LockHandler(6);
@@ -1124,111 +1153,6 @@ void F14_LockHandler(byte Event) {
     
   }
  
-}
-
-// Run the display animation when a lock is lit
-// Event 0 - run the animation
-// Event 1 - kill the animation early
-void F14_LockAnimation(byte Event) {
-
-static byte display_step=0;
-static byte display_step_timer = 0;
-
-
-
-switch (Event) {
-  case 0:
-    if (!display_step_timer) {
-      display_step = 2;
-      SwitchDisplay(0);  // second buffer
-      WriteLower2("              ");
-      WriteUpper2("              ");
-      display_step_timer = ActivateTimer(100, 2, F14_LockAnimation);
-    }
-    break;
-
-  case 2:
-    WriteUpper2("      <>      ");
-    break;
-  case 3:
-    WriteUpper2("     <<>>     ");
-    break;
-  case 4:
-    WriteUpper2("    <<<>>>    ");
-    break;
-  case 5:
-    WriteUpper2("   <<<  >>>   ");
-    break;
-  case 6:
-    WriteUpper2("  <<<    >>>  ");
-    break;
-  case 7:
-    WriteUpper2(" <<<      >>> ");
-    break;
-  case 8:
-    WriteUpper2("<<<        >>>");
-    break;
-  case 9:
-    WriteUpper2("<<          >>");
-    break;
-  case 10:
-    WriteUpper2("<            >");
-    break;
-  case 11:
-    WriteUpper2("              ");
-    break;
-  case 12:
-    WriteUpper2("TOMCAT  TOMCAT");
-    break;
-  case 13:
-    WriteUpper2("              ");
-    break;
-  case 14:
-    WriteUpper2("TOMCAT  TOMCAT");
-    break;
-  case 15:
-    WriteUpper2("              ");
-    break;
-  case 16:
-    WriteUpper2("TOMCAT  TOMCAT");
-    break;
-  case 17:
-    WriteUpper2("              ");
-    break;
-  case 18:
-    WriteUpper2("TOMCAT  TOMCAT");
-    break;
-  case 19:
-    WriteUpper2("              ");
-    break;
-  case 20:
-    WriteUpper2("TOMCAT  TOMCAT");
-    break;
-  case 21:
-    WriteUpper2("              ");
-    break;
-  case 99:
-    if (display_step_timer) {
-      KillTimer(display_step_timer);
-    }
-    display_step_timer = 0;
-    //display_step = 0;
-    SwitchDisplay(1);
-    break;
-  }
-  
-  if (Event > 21) {
-    //display_step = 0;
-    display_step_timer = 0;
-    SwitchDisplay(1);
-  }
-  else if (Event > 11) {
-    display_step_timer = ActivateTimer(200,Event + 1, F14_LockAnimation);
-  }
-  else if (Event > 1) {
-    display_step_timer = ActivateTimer(100,Event + 1, F14_LockAnimation);
-  }
-  
 }
 
 
@@ -1926,33 +1850,88 @@ void F14_RescueKickerHandler(byte Event){
 
 // This handles various things for the vUK (popper top right)
 // The incoming event will specify what the routine is being called for
-// 0 = simply eject
+// 0 = ball landed in kicker
+// 1 = play animation ahead of eject
+// 2 = eject ball
 void F14_vUKHandler(byte Event) {
   
-  F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
+  byte ball_to_be_locked = 0;
+  byte multiball_to_start = 0;
 
+  
+  
+  
   switch (Event) {
+    // ball has landed in kicker.  If it's going to be sent to a lock, we need to do the WEAPONS etc animation
+    // before ejecting.  Also need to award launch bonus if needed
     case 0:             // will need expanding when lock logic coded
-      if (F14_LockStatus[Player][0]==2  && F14_LockStatus[Player][1]==2 && F14_LockStatus[Player][2]==2) {
-        F14_LockHandler(8);
-        ActivateTimer(2000,1,F14_vUKHandler);
+      F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
+
+      // work out if the ball is going to be locked (at least one lock with status 1)
+      for (byte i=0; i<3; i++) {
+        if (F14_LockStatus[Player][i]==1) {
+          ball_to_be_locked=1;
+        }
       }
-      else {  // just flash the lamps and send on its way
-        PlayFlashSequence((byte *)F14_LockedOnSeq);
-        ActivateTimer(2000,1,F14_vUKHandler);
+      // work out if multiball will kick off - all locks status 2
+      if (F14_LockStatus[Player][0]==2  && F14_LockStatus[Player][1]==2 && F14_LockStatus[Player][2]==2) {
+        multiball_to_start = 1;
+      }
+
+      if (ball_to_be_locked) {
+        F14_LockIsLitAnimation(99); // Kill that animation, if running
+        F14_AnimationHandler(0,0); // WEAPONS SYSTEMS etc.  Will call back to vuk handler when done.
+      }
+      else if (multiball_to_start) {
+        F14_LockHandler(8);
+        
+        
+      }
+      else {
+        F14_vUKHandler(1);  // otherwise just kick the ball out.
       }
       break;
-    case 1:  // Timer over, send the ball on its way
+    case 1:  // eject the ball
+      PlayFlashSequence((byte *)F14_LockedOnSeq);
+      ActivateTimer(2000,2,F14_vUKHandler);
+      break;
+    case 2:  // Timer over, send the ball on its way
       ActA_BankSol(3);
       F14_DivertorHandler(0);   // let the divertor know a ball is on the way
       break;
   }
 }
 
-// This handles various things for the right eject (the one under the shooter lane)
-// The incoming event will specify what the routine is being called for
-// 0 = simply eject
-
+// Central Handler for animations (display, flashers etc) 
+// Animation = which one
+// Status 0 = start, Status 1 = finished
+// Not all animations care when they are finished, but sometimes we need to pause gameplay
+// so those animations will call back for handling
+void F14_AnimationHandler(byte Animation, byte Status) {
+  switch(Animation) {
+    case 0:
+      if (Status == 0) {
+        F14_WeaponsAnimation(0);  // WEAPONS SYSTEMS etc
+      }
+      else {
+        F14_vUKHandler(1);  // callback to vuk handler when animation is complete
+      }
+      break;
+    case 1:
+      F14_LockedBallAnimation(0);   // Enemy X locked
+      break;
+    case 2:
+      F14_LockIsLitAnimation(0);
+      break;
+    case 3:
+      if (Status==0) {
+        F14_MultiBallAnimation(0);
+      }
+      else {
+        F14_LockHandler(9); // tell the lock handler we're ready to go!
+      }
+  }
+}
 
 
 
@@ -2426,3 +2405,396 @@ void F14_RepeatMusic(byte Dummy) {
   UNUSED(Dummy);
   //PlayMusic(50, "MUSIC.BIN");
   }
+
+// Display for showing ball locked
+// Event 0 - start the animation
+// Event 99 - terminate early
+void F14_LockedBallAnimation(byte Event) {
+  static byte display_step_timer = 0;
+  byte balls_locked = 0;
+
+  for (byte i=0; i<3; i++) {
+    if (F14_LockStatus[Player][i]==2) {
+      balls_locked++;
+    }
+  }
+  switch (Event) {
+    case 0:
+      if (!display_step_timer) {
+        SwitchDisplay(0); // second buffer
+        WriteLower2("              ");
+        WriteUpper2("              ");
+        display_step_timer = ActivateTimer(250, 1, F14_LockedBallAnimation);
+      }
+      break;
+    case 1:
+    case 3:
+    case 5:
+    case 7:
+      if (balls_locked == 1) {
+        WriteUpper2("ENEMY 1 LOCKED");
+      }
+      else if (balls_locked == 2) {
+        WriteUpper2("ENEMY 2 LOCKED");
+      }
+      else {
+        WriteUpper2("ENEMY 3 LOCKED");
+      }
+      break;
+    case 2:
+    case 4:
+    case 6:
+    case 8:
+      WriteUpper2("ENEMY   LOCKED");
+      break;
+    case 99:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+        SwitchDisplay(1);
+      }
+      break;
+    }
+
+    if (Event < 8) {
+      display_step_timer = ActivateTimer(250, Event+1, F14_LockedBallAnimation);
+    }
+    else {
+      display_step_timer = 0;
+      SwitchDisplay(1);
+    }
+}
+
+// Run the display animation when a lock is lit
+// Event 0 - run the animation
+// Event 1 - kill the animation early
+void F14_LockIsLitAnimation(byte Event) {
+
+static byte display_step_timer = 0;
+
+
+
+switch (Event) {
+  case 0:
+    if (!display_step_timer) {
+      SwitchDisplay(0);  // second buffer
+      WriteLower2("              ");
+      WriteUpper2("              ");
+      display_step_timer = ActivateTimer(100, 2, F14_LockIsLitAnimation);
+    }
+    break;
+
+  case 2:
+  case 12:
+    WriteUpper2("      <>      ");
+    break;
+  case 3:
+  case 13:
+    WriteUpper2("     <<>>     ");
+    break;
+  case 4:
+  case 14:
+    WriteUpper2("    <<<>>>    ");
+    break;
+  case 5:
+  case 15:
+    WriteUpper2("   <<<  >>>   ");
+    break;
+  case 6:
+  case 16:
+    WriteUpper2("  <<<    >>>  ");
+    break;
+  case 7:
+  case 17:
+    WriteUpper2(" <<<      >>> ");
+    break;
+  case 8:
+  case 18:
+    WriteUpper2("<<<        >>>");
+    break;
+  case 9:
+  case 19:
+    WriteUpper2("<<          >>");
+    break;
+  case 10:
+  case 20:
+    WriteUpper2("<            >");
+    break;
+  case 11:
+  case 21:
+    WriteUpper2("              ");
+    break;
+  case 22:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 23:
+    WriteUpper2("              ");
+    break;
+  case 24:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 25:
+    WriteUpper2("              ");
+    break;
+  case 26:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 27:
+    WriteUpper2("              ");
+    break;
+  case 28:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 29:
+    WriteUpper2("              ");
+    break;
+  case 30:
+    WriteUpper2("TOMCAT  TOMCAT");
+    break;
+  case 31:
+    WriteUpper2("              ");
+    break;
+  case 99:
+    if (display_step_timer) {
+      KillTimer(display_step_timer);
+      display_step_timer = 0;
+      SwitchDisplay(1);
+    }
+    return;
+    break;
+  }
+  
+  if (Event > 31) {
+    display_step_timer = 0;
+    SwitchDisplay(1);
+  }
+  else if (Event > 21) {
+    display_step_timer = ActivateTimer(200,Event + 1, F14_LockIsLitAnimation);
+  }
+  else if (Event > 1) {
+    display_step_timer = ActivateTimer(50,Event + 1, F14_LockIsLitAnimation);
+  }
+  
+}
+
+// uses C and ? as crosshairs in char set. >< will be like the aircraft in the crosshairs
+void F14_WeaponsAnimation(byte Event) {
+  static byte display_step_timer = 0;
+
+  switch (Event) {
+    case 0:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+      }
+      SwitchDisplay(0); // buffer 2
+      display_step_timer = ActivateTimer(100, 1, F14_WeaponsAnimation);
+      break;
+    case 1:
+      WriteUpper2("WEAPONSSYSTEMS");
+      WriteLower2("              ");
+    break;
+    case 2:
+      WriteLower2("<             ");
+    break;
+    case 3:
+      WriteLower2("><            ");
+    break;
+    case 4:
+      WriteLower2(" ><           ");
+    break;
+    case 5:
+      WriteLower2("  ><          ");
+    break;
+    case 6:
+      WriteLower2("?  ><         ");
+    break;
+    case 7:
+      WriteLower2(" ?  ><        ");
+    break;
+    case 8:
+      WriteLower2("  ?  ><       ");
+    break;
+    case 9:
+      WriteLower2("C  ?  ><      ");
+    break;
+    case 10:
+      WriteLower2(" C  ?  ><     ");
+    break;
+    case 11:
+      WriteLower2("  C  ?  ><    ");
+    break;
+    case 12:
+      WriteLower2("   C  ?  ><   ");
+    break;
+    case 13:
+      WriteLower2("    C  ? ><   ");
+    break;
+    case 14:
+      WriteLower2("    C  ?><    ");
+    break;
+    case 15:
+      WriteLower2("     C  ?<    ");
+    break;
+    case 16:
+      WriteLower2("      C >?    ");
+    break;
+    case 17:
+      WriteLower2("       C><?   ");
+    break;
+    case 18:
+      WriteLower2("        C< ?  ");
+    break;
+    case 19:
+      WriteLower2("       >C  ?  ");
+    break;
+    case 20:
+      WriteLower2("      ><C  ?  ");
+    break;
+    case 21:
+      WriteLower2("     >< C  ?  ");
+    break;
+    case 22:
+      WriteLower2("    >< C  ?   ");
+    break;
+    case 23:
+      WriteLower2("   >< C  ?    ");
+    break;
+    case 24:
+      WriteLower2("   ><C  ?     ");
+    break;
+    case 25:
+      WriteLower2("   >C  ?      ");
+    break;
+    case 26:
+      WriteLower2("   C< ?       ");
+    break;
+    case 27:
+      WriteLower2("   C><?       ");
+    break;
+    case 28:
+      WriteUpper2("LOCKED   ON   ");
+      WriteLower2("   C><?       ");
+      break;
+    case 29:
+      WriteUpper2("              ");
+      WriteLower2("              ");
+      break;
+    case 30:
+      WriteUpper2("LOCKED   ON   ");
+      WriteLower2("   C><?       ");
+      break;
+    case 31:
+      WriteUpper2("              ");
+      WriteLower2("              ");
+      break;
+    case 32:
+      WriteUpper2("LOCKED   ON   ");
+      WriteLower2("   C><?       ");
+      break;
+    case 33:
+      WriteUpper2("              ");
+      WriteLower2("              ");
+      break;
+    case 99:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+        SwitchDisplay(1);
+      }
+      break;
+  }
+  if (Event > 33) {
+    display_step_timer = 0;
+    SwitchDisplay(1);  // back to the old display
+    F14_AnimationHandler(0,1); // let the handler know animation is done.
+  }
+  else if (Event < 28) {
+    display_step_timer = ActivateTimer(100,Event+1,F14_WeaponsAnimation);
+  }
+  else {
+    display_step_timer = ActivateTimer(200,Event+1,F14_WeaponsAnimation);
+  }
+}
+
+// multiball intro
+void F14_MultiBallAnimation(byte Event) {
+  static byte display_step_timer = 0;
+
+  switch (Event) {
+    case 0:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+      }
+      SwitchDisplay(0); // buffer 2
+      display_step_timer = ActivateTimer(100, 1, F14_MultiBallAnimation);
+      break;
+    case 1:
+      WriteUpper2("*DANGERDANGER*");
+      WriteLower2("              ");
+      break;
+    case 2:
+      WriteUpper2("              ");
+      break;
+    case 3:
+      WriteUpper2("*DANGERDANGER*");
+      break;
+    case 4:
+      WriteUpper2("              ");
+      break;
+    case 5:
+      WriteUpper2("*DANGERDANGER*");
+      break;
+    case 6:
+      WriteUpper2("              ");
+      break;
+    case 7:
+      WriteUpper2("TARGETSSIGHTED");
+      break;
+    case 8:
+      WriteUpper2("              ");
+      break;
+    case 9:
+      WriteUpper2("TARGETSSIGHTED");
+      break;
+    case 10:
+      WriteUpper2("              ");
+      break;
+    case 11:
+      WriteUpper2("TARGETSSIGHTED");
+      break;
+    case 12:
+      WriteUpper2("              ");
+      break;
+    case 13:
+      WriteUpper2("DESTROYENEMIES");
+      break;
+    case 14:
+      WriteUpper2("              ");
+      break;
+    case 15:
+      WriteUpper2("DESTROYENEMIES");
+      break;
+    case 16:
+      WriteUpper2("              ");
+      break;
+    case 17:
+      WriteUpper2("DESTROYENEMIES");
+      break;
+    case 18:
+      WriteUpper2("              ");
+      break;
+    
+  }
+
+  if (Event > 18) {
+    display_step_timer = 0;
+    SwitchDisplay(1);  // back to the old display
+    F14_AnimationHandler(3,1); // let the handler know animation is done.
+  }
+  else {
+    display_step_timer = ActivateTimer(200,Event+1,F14_MultiBallAnimation);
+  }
+
+}
