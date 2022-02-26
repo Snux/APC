@@ -741,6 +741,12 @@ void F14_HotStreakHandler(byte Event) {
   static byte streak_score = 0;
   static byte streak_step = 0;
   
+ if (APC_settings[DebugMode]){
+    Serial.print("F14_HotStreakHandler event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
+
+
   switch(Event) {
     case 0:
       if (streak_timer) {  // if already running, ignore
@@ -762,6 +768,9 @@ void F14_HotStreakHandler(byte Event) {
       if (streak_score < 10) {
         streak_score ++;
       }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
       SwitchDisplay(0);  // over to buffer 2
      
       streak_timer = ActivateTimer(3000,2,F14_HotStreakHandler);  // reset the timer back to 2 seconds
@@ -772,7 +781,9 @@ void F14_HotStreakHandler(byte Event) {
       break;
     case 2:  // Overall streak timer has run out, shut it down
       streak_timer = 0;
-      SwitchDisplay(1);
+      if (streak_score) {
+        SwitchDisplay(1);  // only need to put display back if we scored something
+      }
       streak_score = 0;
       streak_step = 0;
       TurnOffLamp(3);
@@ -1099,8 +1110,8 @@ void F14_LockHandler(byte Event) {
     case 30:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
-        WriteUpper2("  HEADS UP    ");
-        ShowMessage(1);
+        //WriteUpper2("  HEADS UP    ");
+        //ShowMessage(1);
         ActA_BankSol(7);
         F14_LockOccupied[2] = 2;  // Let the lock handler know we're expecting a replacement ball
       }
@@ -1109,8 +1120,8 @@ void F14_LockHandler(byte Event) {
     case 31:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
-        WriteUpper2("  HEADS UP    ");
-        ShowMessage(1);
+        //WriteUpper2("  HEADS UP    ");
+        //ShowMessage(1);
         ActivateSolenoid(0, 10);
         F14_LockOccupied[0] = 2; // Let the lock handler know we're expecting a replacement ball
       }
@@ -1119,8 +1130,8 @@ void F14_LockHandler(byte Event) {
     case 32:  // upper ramp
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
         // Play "heads up"
-        WriteUpper2("  HEADS UP    ");
-        ShowMessage(1);
+        //WriteUpper2("  HEADS UP    ");
+        //ShowMessage(1);
         ActA_BankSol(5);
         F14_LockOccupied[1] = 2; // Let the lock handler know we're expecting a replacement ball
       }
@@ -1283,6 +1294,11 @@ void F14_BonusHandler(byte Event){
 // Event 1 - just light the correct lamps based on the kill count (when switching players for example)
 // Event 2 - 
 void F14_LineOfDeathHandler(byte Event) {
+   if (APC_settings[DebugMode]){
+    Serial.print("F14_LineOfDeathHandler event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
+
   static int kill_step = 0;
   static int kill_loop = 0;
   switch (Event){
@@ -1292,6 +1308,8 @@ void F14_LineOfDeathHandler(byte Event) {
         return;
       F14_Kills[Player]++;
       TurnOnLamp(101+F14_Kills[Player]);
+      WriteUpper2("              ");
+      WriteLower2("              ");
       SwitchDisplay(0);  // use the second buffer
       switch (F14_Kills[Player]) {
         case 1:
@@ -1429,6 +1447,7 @@ void F14_LaunchBonusHandler(byte Event) {
       bonus_enabled = 0;
       strobe_timer = 0;
       F14_BonusHandler(2);  // reset the bonus lamps after we've been strobing them
+      F14_LockLampHandler(); // and the release/lock lamps
       break;
     case 3:
       switch (strobe_step) {  // a little work could remove this monster case statement and calculate it
@@ -1750,6 +1769,7 @@ void F14_OrbitHandler(byte Event) {
         clockwise_timer = 0;
         if (left_bonusX_lit) {
           F14_BonusHandler(1);
+          F14_HotStreakHandler(0);  // enable hotstreak
           F14_OrbitHandler(6);  // extend the timer
         }
         else {
@@ -1766,7 +1786,8 @@ void F14_OrbitHandler(byte Event) {
         KillTimer(anti_clock_timer);
         anti_clock_timer = 0;
         if (right_bonusX_lit) {
-          F14_BonusHandler(1);
+          F14_BonusHandler(1);  // bump the multiplier
+          F14_HotStreakHandler(0); // enable hotstreak
           F14_OrbitHandler(6); // extend the timer
         }
         else {
@@ -1779,7 +1800,6 @@ void F14_OrbitHandler(byte Event) {
       break;
     case 2:
       right_bonusX_lit = 1;
-      F14_HotStreakHandler(0);
       AddBlinkLamp(55,300);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
@@ -1789,7 +1809,6 @@ void F14_OrbitHandler(byte Event) {
       break;
     case 3:
       left_bonusX_lit = 1;
-      F14_HotStreakHandler(0);
       AddBlinkLamp(32,300);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
@@ -2540,6 +2559,12 @@ void F14_LockedBallAnimation(byte Event) {
   static byte display_step_timer = 0;
   byte balls_locked = 0;
 
+ if (APC_settings[DebugMode]){
+    Serial.print("F14_LockedBallAnimation event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
+
+
   for (byte i=0; i<3; i++) {
     if (F14_LockStatus[Player][i]==2) {
       balls_locked++;
@@ -2548,10 +2573,9 @@ void F14_LockedBallAnimation(byte Event) {
   switch (Event) {
     case 0:
       if (!display_step_timer) {
-        SwitchDisplay(0); // second buffer
-        WriteLower2("              ");
         WriteUpper2("              ");
-        display_step_timer = ActivateTimer(250, 1, F14_LockedBallAnimation);
+        WriteLower2("              ");
+        SwitchDisplay(0); // second buffer
       }
       break;
     case 1:
@@ -2599,15 +2623,18 @@ void F14_LockIsLitAnimation(byte Event) {
 
 static byte display_step_timer = 0;
 
+ if (APC_settings[DebugMode]){
+    Serial.print("F14_LockIsLitAnimation event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
 
 
 switch (Event) {
   case 0:
     if (!display_step_timer) {
-      SwitchDisplay(0);  // second buffer
-      WriteLower2("              ");
       WriteUpper2("              ");
-      display_step_timer = ActivateTimer(100, 2, F14_LockIsLitAnimation);
+      WriteLower2("              ");
+      SwitchDisplay(0);  // second buffer
     }
     break;
 
@@ -2698,7 +2725,7 @@ switch (Event) {
   else if (Event > 21) {
     display_step_timer = ActivateTimer(200,Event + 1, F14_LockIsLitAnimation);
   }
-  else if (Event > 1) {
+  else  {
     display_step_timer = ActivateTimer(50,Event + 1, F14_LockIsLitAnimation);
   }
   
@@ -2720,8 +2747,10 @@ void F14_WeaponsAnimation(byte Event) {
         KillTimer(display_step_timer);
         display_step_timer = 0;
       }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
       SwitchDisplay(0); // buffer 2
-      //display_step_timer = ActivateTimer(100, 1, F14_WeaponsAnimation);
       break;
     case 1:
       WriteUpper2("WEAPONSSYSTEMS");
@@ -2854,6 +2883,10 @@ void F14_WeaponsAnimation(byte Event) {
 // multiball intro
 void F14_MultiBallAnimation(byte Event) {
   static byte display_step_timer = 0;
+ if (APC_settings[DebugMode]){
+    Serial.print("F14_MultiBallAnimation event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
 
   switch (Event) {
     case 0:
@@ -2861,8 +2894,10 @@ void F14_MultiBallAnimation(byte Event) {
         KillTimer(display_step_timer);
         display_step_timer = 0;
       }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
       SwitchDisplay(0); // buffer 2
-      //display_step_timer = ActivateTimer(100, 1, F14_MultiBallAnimation);
       break;
     case 1:
       WriteUpper2("*DANGERDANGER*");
@@ -2947,11 +2982,14 @@ static byte display_step_timer = 0;
         KillTimer(display_step_timer);
         display_step_timer = 0;
       }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
       SwitchDisplay(0); // buffer 2
-      //display_step_timer = ActivateTimer(100, 1, F14_LaunchBonusAnimation);
       break;
     case 1:
       WriteUpper2(" LAUNCHBONUS ");
+      WriteLower2("             ");
       ShowNumber(30,F14_LaunchBonus*10000);
       ShowNumber(22,F14_LaunchBonus*10000);
       break;
