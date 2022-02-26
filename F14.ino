@@ -199,7 +199,6 @@ void F14_init() {
     Serial.begin(115200);
     Serial.println("Debug on");}
   GameDefinition = F14_GameDefinition;                // read the game specific settings and highscores
-  //LEDsetColorMode(2);
   F14_GIOn(255,0,0);}                                        //switch on the gi
 
 void F14_AttractMode() {                               // Attract Mode
@@ -440,7 +439,6 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
   F14_LaunchBonusHandler(4);
-  //F14_LaunchBonusHandler(3);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -606,7 +604,6 @@ void F14_GameMain(byte Event) {                        // game switch events
     return;
   }
   if (APC_settings[DebugMode]){
-  //  Serial.print(time_now);
     Serial.print("Game mode switch ");            // print address reference table
     Serial.println((byte)Event);
   }
@@ -948,19 +945,19 @@ if (Multiballs==1) {
       AddBlinkLamp(61, 100);
     }
     else {
-      TurnOnLamp(61);
+      RemoveBlinkLamp(61); TurnOnLamp(61);
     }
     if (F14_LandingStatus[Player][1]==0) {
       AddBlinkLamp(60, 100);
     }
     else {
-      TurnOnLamp(60);
+      RemoveBlinkLamp(60); TurnOnLamp(60);
     }
-    if (F14_LandingStatus[Player][1]==0) {
+    if (F14_LandingStatus[Player][2]==0) {
       AddBlinkLamp(62, 100);
     }
     else {
-      TurnOnLamp(62);
+      RemoveBlinkLamp(62); TurnOnLamp(62);
     }
     // during multiball the beacons should be on
     ActivateSolenoid(0,16);
@@ -1109,9 +1106,6 @@ void F14_LockHandler(byte Event) {
       break;
     case 30:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
-        // Play "heads up"
-        //WriteUpper2("  HEADS UP    ");
-        //ShowMessage(1);
         ActA_BankSol(7);
         F14_LockOccupied[2] = 2;  // Let the lock handler know we're expecting a replacement ball
       }
@@ -1119,9 +1113,6 @@ void F14_LockHandler(byte Event) {
   
     case 31:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
-        // Play "heads up"
-        //WriteUpper2("  HEADS UP    ");
-        //ShowMessage(1);
         ActivateSolenoid(0, 10);
         F14_LockOccupied[0] = 2; // Let the lock handler know we're expecting a replacement ball
       }
@@ -1129,9 +1120,6 @@ void F14_LockHandler(byte Event) {
       break;
     case 32:  // upper ramp
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
-        // Play "heads up"
-        //WriteUpper2("  HEADS UP    ");
-        //ShowMessage(1);
         ActA_BankSol(5);
         F14_LockOccupied[1] = 2; // Let the lock handler know we're expecting a replacement ball
       }
@@ -1159,50 +1147,59 @@ void F14_LockHandler(byte Event) {
         }
       }
       else { // multiball is running
-        if (F14_LandingStatus[Player][0]==0) {
-          
+          F14_LandingHandler(0);
         }
-      }
+      
       break;
     case 23: // Lock number 2
-      if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
-        F14_LockOccupied[1]=1;
-        break;
+      if (Multiballs==1) {
+        if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
+          F14_LockOccupied[1]=1;
+          break;
+        }
+        else if (F14_LockOccupied[1]==1) {
+          break;
+        }
+        switch (F14_LockStatus[Player][1]) {
+          case 0:
+            ActivateTimer(1000,5,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+            //ActA_BankSol(5);
+            break;
+          case 1:
+            F14_LockHandler(5);
+            break;
+          case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+            break;
+        }
       }
-      else if (F14_LockOccupied[1]==1) {
-        break;
-      }
-      switch (F14_LockStatus[Player][1]) {
-        case 0:
-          ActivateTimer(1000,5,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
-          //ActA_BankSol(5);
-          break;
-        case 1:
-          F14_LockHandler(5);
-          break;
-        case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
-          break;
+      else {
+        F14_LandingHandler(1);
       }
       break;
     case 21: // Lock number 3
-      if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
-        F14_LockOccupied[2]=1;
-        break;
-      }
+      if (Multiballs==1) {
+        if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
+          F14_LockOccupied[2]=1;
+          break;
+        }
 
-      else if (F14_LockOccupied[2]==1) {
-        break;
+        else if (F14_LockOccupied[2]==1) {
+          break;
+        }
+        switch (F14_LockStatus[Player][2]) {
+          case 0:
+            ActivateTimer(1000,7,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+            //ActA_BankSol(7);
+            break;
+          case 1:
+            F14_LockHandler(6);
+            break;
+          case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+            break;
+        }
       }
-      switch (F14_LockStatus[Player][2]) {
-        case 0:
-          ActivateTimer(1000,7,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
-          //ActA_BankSol(7);
-          break;
-        case 1:
-          F14_LockHandler(6);
-          break;
-        case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
-          break;
+      else {
+        F14_LandingHandler(2);
       }
       break;
       
@@ -1231,6 +1228,82 @@ void F14_LockHandler(byte Event) {
  
 }
 
+// Handle what happens during multiball when a ball reaches a lock.
+// This could be included in the lock handler but that code is already
+// complicated enough :)
+void F14_LandingHandler(byte Lock) {
+int landing_bonus;
+byte landing_count=0;
+
+  if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
+    Serial.print("F14_LandingHandler for lock, pre status ");
+    Serial.println((byte)Lock);
+    Serial.print("Landing 1 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][0]);
+    Serial.print("Landing 2 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][1]);
+    Serial.print("Landing 3 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][2]);
+
+  }
+
+  // Set the status on this one
+  F14_LandingStatus[Player][Lock]=1;
+
+  // Work out how many landed  
+  for (byte i=0; i<3; i++) {
+    if (F14_LandingStatus[Player][i]==1) {
+      landing_count++;
+    }
+  }
+
+  // Work out the bonus
+  if (landing_count==1) {
+    landing_bonus = 150000;
+  }
+  else if (landing_count==2) {
+    landing_bonus = 250000;
+  }
+  else {
+    landing_bonus = 703850;
+    for (byte i=0; i<3; i++) {
+      F14_LandingStatus[Player][i]=0;
+    }
+  }
+
+  Points[Player]+=landing_bonus;
+
+  // Sort out the lamps
+  
+  F14_LockLampHandler();
+
+  // Kick the ball back out
+  switch (Lock) {
+    case 0:
+      ActivateTimer(1000,10,F14_ActivateSolenoid);
+      break;
+    case 1:
+      ActivateTimer(1000,5,F14_ActivateSolenoid);
+      break;
+    case 2:
+      ActivateTimer(1000,7,F14_ActivateSolenoid);
+      break;
+  }
+
+  if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
+    Serial.print("F14_LandingHandler for lock, post status ");
+    Serial.println((byte)Lock);
+    Serial.print("Landing 1 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][0]);
+    Serial.print("Landing 2 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][1]);
+    Serial.print("Landing 3 = ")  ;
+    Serial.println((byte)F14_LandingStatus[Player][2]);
+
+  }
+
+
+}
 
 // Handle bonus and bonus multiplier
 // Event 0 - increment bonus
@@ -1989,6 +2062,8 @@ void F14_vUKHandler(byte Event) {
                                     // that will callback here with event 3 to continue
       }
       else { // in multiball
+        F14_AnimationHandler(5,0); // safe landing, no callback on that one, it just plays
+        ActivateTimer(2000,1,F14_vUKHandler);
         // play some fancy animation with callback to launch ball
       }
       break;
@@ -2075,6 +2150,9 @@ void F14_AnimationHandler(byte Animation, byte Status) {
       else {
         F14_vUKHandler(3);  // call back to vuk handler when animation complete.
       }
+      break;
+    case 5:
+      F14_SafeLandingAnimation(0);
       break;
   }
 }
@@ -2873,7 +2951,7 @@ void F14_WeaponsAnimation(byte Event) {
     F14_AnimationHandler(0,1); // let the handler know animation is done.
   }
   else if (Event < 28) {
-    display_step_timer = ActivateTimer(100,Event+1,F14_WeaponsAnimation);
+    display_step_timer = ActivateTimer(75,Event+1,F14_WeaponsAnimation);
   }
   else {
     display_step_timer = ActivateTimer(200,Event+1,F14_WeaponsAnimation);
@@ -3025,6 +3103,58 @@ static byte display_step_timer = 0;
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_LaunchBonusAnimation);
+  }
+
+}
+
+void F14_SafeLandingAnimation(byte Event){
+static byte display_step_timer = 0;
+
+
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_SafeLandingAnimation event ");            // print address reference table
+    Serial.println((byte)Event);
+  }
+
+  switch (Event) {
+    case 0:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+      }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
+      SwitchDisplay(0); // buffer 2
+      break;
+    case 1:
+      WriteUpper2(" SAFE  LANDING");
+      break;
+    case 2:
+      WriteUpper2("              ");
+      break;
+    case 3:
+      WriteUpper2(" SAFE  LANDING");
+      break;
+    case 4:
+      WriteUpper2("              ");
+      break;
+    case 5:
+      WriteUpper2(" SAFE  LANDING");
+      break;
+    case 6:
+      WriteUpper2("              ");
+      break;
+   
+  }
+
+  if (Event > 6) {
+    display_step_timer = 0;
+    SwitchDisplay(1);  // back to the old display
+    F14_AnimationHandler(4,1); // let the handler know animation is done.
+  }
+  else {
+    display_step_timer = ActivateTimer(500,Event+1,F14_SafeLandingAnimation);
   }
 
 }
