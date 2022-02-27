@@ -433,6 +433,8 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_RescueKickerHandler(0);                         // Light the kickback at ball start
   F14_LockHandler(7); // reset locks back to lit instead of locked if no longer contain a ball.
   F14_LockLampHandler();                                 // Lock handler reset
+  F14_Multiplier = 1;
+  F14_Bonus = 0;
   F14_BonusHandler(2);                                // Reset bonus lamps
   F14_TomcatTargetLamps();
   F14_LineOfDeathHandler(1);
@@ -696,14 +698,18 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 59: // left inlane
     F14_OrbitHandler(2);  // light the right bonus x lane
     F14_LaunchBonusHandler(0); // launch bonus
-    // Code for launch bonus
+    F14_BonusHandler(0); // increment end of ball bonus
     break;
   case 60:  //right inlane
     F14_OrbitHandler(3);
-    // Code whatever that does
+    F14_BonusHandler(0); // increment end of ball bonus
     break;
-  case 61:
+  case 61: // left drain
     F14_RescueKickerHandler(1);
+    F14_BonusHandler(0); // increment end of ball bonus
+    break;
+  case 62: // right drain
+    F14_BonusHandler(0); // increment end of ball bonus
     break;
   case 65: // left slingshot
     Points[Player] += 10;
@@ -1310,6 +1316,8 @@ byte landing_count=0;
 // Event 1 - increment multiplier
 // Event 2 - update bonus and multiplier lamps
 void F14_BonusHandler(byte Event){
+
+  
   switch(Event) {
     case 0:
       if (F14_Bonus < 127) {  // max is 127, playfield can't display more
@@ -1692,6 +1700,7 @@ void F14_TomcatTargetHandler(byte Event, byte Target) {
   // Target is still flashing, so score it
   if (F14_TomcatTargets[Player][Target] == 0) {
     Points[Player] += 1000;
+    F14_BonusHandler(0);  // increment the end of ball bonus
     F14_TomcatTargets[Player][Target]  = 1;   // Mark the target as hit
       if (Target < 6) {  // and the corresponding one on the other half of playfield
         F14_TomcatTargets[Player][Target+6] = 1;
@@ -1778,10 +1787,10 @@ void F14_1to6Handler(byte Event) {
       else {
         Points[Player] += 500;
       }
+      ShowPoints(Player);
       break;
-
   }
-  ShowPoints(Player);
+  
 }
 
 // Some shots will spot a TOMCAT letter, this routine will find an unlit
@@ -2264,7 +2273,8 @@ void F14_BallEnd(byte Event) {
       else {
         LockedBalls[Player] = 0;
         BlinkScore(0);                                // stop score blinking
-        F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
+        F14_AwardBonus(0);
+        //F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
       }}}}
 
 void F14_BallEnd2(byte Balls) {
@@ -2297,6 +2307,120 @@ void F14_BallEnd3(byte Balls) {
       ReleaseSolenoid(24);
       F14_CheckForLockedBalls(0);
       GameDefinition.AttractMode();}}}
+
+// End of ball bonus
+// Event 0 - award the bonus
+// all other events are internal timers / loops for the display
+// main display is in 3 sections
+// 1 - display        BONUS 1234567
+// 2 - display 1X 2X 3X etc
+// 3 - count it down into the score
+void F14_AwardBonus (byte Event) {
+  static int total_bonus;
+  static byte bonus_timer;
+  static byte temp_bonus;
+
+  switch (Event) {
+    case 0:
+      total_bonus = F14_Bonus * F14_Multiplier * 1000;
+      temp_bonus = F14_Bonus;
+      WritePlayerDisplay((char *) "BONUS ",1);
+      DisplayScore(2, F14_Bonus * 1000);
+      break;
+    case 1:
+      WritePlayerDisplay((char *) "   1X  ",1);
+      if (F14_Multiplier == 1) {
+        Event = 9;
+      }
+      break;
+    case 2:
+      WritePlayerDisplay((char *) "   2X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 2);
+      if (F14_Multiplier == 2) {
+        Event = 9;
+      }
+      break;
+    case 3:
+      WritePlayerDisplay((char *) "   3X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 3);
+      if (F14_Multiplier == 3) {
+        Event = 9;
+      }
+      break;
+    case 4:
+      WritePlayerDisplay((char *) "   4X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 4);
+      if (F14_Multiplier == 4) {
+        Event = 9;
+      }
+      break;
+    case 5:
+      WritePlayerDisplay((char *) "   5X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 5);
+      if (F14_Multiplier == 5) {
+        Event = 9;
+      }
+      break;
+    case 6:
+      WritePlayerDisplay((char *) "   6X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 6);
+      if (F14_Multiplier == 6) {
+        Event = 9;
+      }
+      break;
+    case 7:
+      WritePlayerDisplay((char *) "   7X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 7);
+      if (F14_Multiplier == 7) {
+        Event = 9;
+      }
+      break;
+    case 8:
+      WritePlayerDisplay((char *) "   8X  ",1);
+      DisplayScore(2, F14_Bonus * 1000 * 8);
+      if (F14_Multiplier == 8) {
+        Event = 9;
+      }
+      break;
+    case 9:
+      DisplayScore(1, Points[Player]);
+      DisplayScore(2, total_bonus);
+      break;
+      
+    case 10:
+      DisplayScore(1, Points[Player]);
+      DisplayScore(2, total_bonus);
+      if (total_bonus==0) {
+        Event = 11;  // jump out once countdown complete
+        break;
+      }
+      if (F14_Bonus == 0) {
+        F14_Bonus = temp_bonus;
+        F14_Multiplier  --;
+      }
+      else {
+        F14_Bonus --;
+      }
+      total_bonus = total_bonus - 1000;
+      Points[Player] = Points[Player] + 1000;
+      F14_BonusHandler(2); // update the lamps as we count down.
+      break;
+
+
+  }
+
+  if (Event > 10) {
+    bonus_timer = 0;
+    WriteUpper("              ");
+    F14_BallEnd2(F14_CountBallsInTrunk()); // continue ending the ball
+  }
+  else if (Event < 10) {
+    bonus_timer = ActivateTimer(500, Event+1, F14_AwardBonus);
+  }
+  else {
+    bonus_timer = ActivateTimer(50, 10,  F14_AwardBonus);
+  }
+}
 
 void F14_ResetHighScores(bool change) {                // delete the high scores file
   if (change) {                                       // if the start button has been pressed
@@ -2954,7 +3078,7 @@ void F14_WeaponsAnimation(byte Event) {
     display_step_timer = ActivateTimer(75,Event+1,F14_WeaponsAnimation);
   }
   else {
-    display_step_timer = ActivateTimer(200,Event+1,F14_WeaponsAnimation);
+    display_step_timer = ActivateTimer(150,Event+1,F14_WeaponsAnimation);
   }
 }
 
