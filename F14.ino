@@ -12,6 +12,7 @@ byte F14_Kills[5];  // How many kills (Alpha -> Golf) has the player made
 byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 is lit, 2 is locked, 3 contains unlocked ball
 byte F14_LockOccupied[3]; // does the lock contain a ball.  0 = no, 1 = yes, 2 = no but waiting refill
 byte F14_LandingStatus[5][3]; // Track status of multiball progress towards fighter jackpot
+byte F14_YagovKills[5];  // tracks how many times we killed Yagov
 byte F14_LaunchBonus;
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
@@ -358,7 +359,8 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       InLock = 0;
       Multiballs = 1;
       for (i=1; i < 5; i++) {
-        LockedBalls[i] = 0;
+        //LockedBalls[i] = 0;
+        F14_YagovKills[i]=0;
         Points[i] = 0;
         F14_Kills[i]=0;  // How many kills (Alpha -> Golf) has the player made
         for (byte j=0; j<3; j++) {
@@ -372,7 +374,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[1] = 0;
       F14_LockOccupied[2] = 0;
       
-      F14_LineOfDeathHandler(1);  // sort the kill lamps out
+      F14_LineOfDeathHandler(2);  // sort the kill lamps out
       F14_RescueTargetHandler(0); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
@@ -437,7 +439,7 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_Bonus = 0;
   F14_BonusHandler(2);                                // Reset bonus lamps
   F14_TomcatTargetLamps();
-  F14_LineOfDeathHandler(1);
+  F14_LineOfDeathHandler(2);
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
   F14_LaunchBonusHandler(4);
@@ -646,9 +648,11 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_vUKHandler(0);
     break;
   case 25:  // left rescue target
+    F14_CentreKillHandler(1); // will award kill if it was lit
     F14_RescueTargetHandler(2);
     break;
   case 26:
+    F14_CentreKillHandler(1);
     F14_RescueTargetHandler(3);
     break;
   case 30:
@@ -699,10 +703,17 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_OrbitHandler(2);  // light the right bonus x lane
     F14_LaunchBonusHandler(0); // launch bonus
     F14_BonusHandler(0); // increment end of ball bonus
+    if (F14_YagovKills[Player]==0) {  // if the inlane 'lite kill' are active, tell the handler
+      F14_CentreKillHandler(0);
+    }
     break;
   case 60:  //right inlane
     F14_OrbitHandler(3);
     F14_BonusHandler(0); // increment end of ball bonus
+    if (F14_YagovKills[Player]==0) { // if the inlane 'lite kill' are active, tell the handler
+      F14_CentreKillHandler(0);
+    }
+    
     break;
   case 61: // left drain
     F14_RescueKickerHandler(1);
@@ -1384,7 +1395,8 @@ void F14_LineOfDeathHandler(byte Event) {
   static int kill_loop = 0;
   switch (Event){
     case 0:
-      ActivateSolenoid(0, 12);
+      ActivateSolenoid(0, 12);  // fall through to case 1 is correct in this case
+    case 1: 
       if (F14_Kills[Player]==7)
         return;
       F14_Kills[Player]++;
@@ -1418,18 +1430,24 @@ void F14_LineOfDeathHandler(byte Event) {
       WriteLower2("              ");
       kill_step = 0;
       kill_loop = 0;
-      ActivateTimer(200,2,F14_LineOfDeathHandler);
+      ActivateTimer(200,3,F14_LineOfDeathHandler);
       break;
-    case 1:
+    case 2:
       for (byte i=1; i < 8; i++) {
         if (i > F14_Kills[Player])
           TurnOffLamp(i+101);
         else
           TurnOnLamp(i+101);
-      
+      }
+      // inlanes lite kill shot if Yagov not completed once
+      if (F14_YagovKills[Player]==0) {
+        TurnOnLamp(39); // both inlanes
+      }
+      else {
+        TurnOffLamp(39);
       }
       break;
-    case 2:
+    case 3:
       switch(kill_step) {
         case 0:
           WriteLower2("      2 5       ");
@@ -1468,7 +1486,7 @@ void F14_LineOfDeathHandler(byte Event) {
         kill_step=0;
       }
       if (kill_loop<5) {
-        ActivateTimer(40,2,F14_LineOfDeathHandler);
+        ActivateTimer(40,3,F14_LineOfDeathHandler);
       }
       else {
         SwitchDisplay(1);  // all done, back to normal
@@ -1476,6 +1494,33 @@ void F14_LineOfDeathHandler(byte Event) {
   }
 }
 
+// Simple handler for the inlane -> kill target
+// Event 0 - light the centre kill after inlane active
+// Event 1 - centre kill hit
+// Event 2 - timer expired
+void F14_CentreKillHandler(byte Event) {
+  static byte centre_kill_timer=0;
+
+  switch (Event) {
+    case 0:
+      if (!centre_kill_timer) {
+        AddBlinkLamp(109,100);
+        centre_kill_timer = ActivateTimer(1500, 2, F14_CentreKillHandler);
+      }
+      break;
+    case 1:
+      if (centre_kill_timer) {
+        F14_LineOfDeathHandler(1); // award kill without firing kickback
+        F14_CentreKillHandler(2); // shut this down, only awarded once
+      }
+      break;
+    case 2:
+      if (centre_kill_timer) {
+        centre_kill_timer = 0;
+        RemoveBlinkLamp(109);
+      }
+  }
+}
 
 // The launch bonus is awarded when a left inlane is followed by a shot to the vuk
 // within 2 seconds.  During this time the bonus lamps strobe.
