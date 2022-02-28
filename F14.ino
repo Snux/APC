@@ -13,6 +13,7 @@ byte F14_LockStatus[5][3]; // status of locks for each player.  0 not active, 1 
 byte F14_LockOccupied[3]; // does the lock contain a ball.  0 = no, 1 = yes, 2 = no but waiting refill
 byte F14_LandingStatus[5][3]; // Track status of multiball progress towards fighter jackpot
 byte F14_YagovKills[5];  // tracks how many times we killed Yagov
+byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
 byte F14_LaunchBonus;
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
@@ -361,6 +362,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       for (i=1; i < 5; i++) {
         //LockedBalls[i] = 0;
         F14_YagovKills[i]=0;
+        F14_ExtraBallLit[i]=0;
         Points[i] = 0;
         F14_Kills[i]=0;  // How many kills (Alpha -> Golf) has the player made
         for (byte j=0; j<3; j++) {
@@ -431,14 +433,18 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
     Serial.println("F14_NewBall");            // print address reference table
   }
 
-  ShowAllPoints(0);
+  F14_ShowAllPoints(0);
   F14_RescueKickerHandler(0);                         // Light the kickback at ball start
   F14_LockHandler(7); // reset locks back to lit instead of locked if no longer contain a ball.
   F14_LockLampHandler();                                 // Lock handler reset
   F14_Multiplier = 1;
   F14_Bonus = 0;
+  ExBalls = 0;
   F14_BonusHandler(2);                                // Reset bonus lamps
   F14_TomcatTargetLamps();
+  if (F14_Kills[Player] == 7) {  // reset kills if we completed them all on previous ball
+    F14_Kills[Player] = 0;
+  }
   F14_LineOfDeathHandler(2);
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
@@ -459,7 +465,7 @@ if (APC_settings[DebugMode]){
     Serial.println("F14_GiveBall");            // print address reference table
     
   }
-  ShowAllPoints(0);
+  F14_ShowAllPoints(0);
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -520,19 +526,19 @@ void F14_SearchBall(byte Counter) {                    // ball watchdog timer ha
   }
 
   BallWatchdogTimer = 0;
-  if (QuerySwitch(game_settings[F14set_OutholeSwitch])) {
+  if (QuerySwitch(10)) {
     BlockOuthole = false;
     ActivateTimer(1000, 0, F14_ClearOuthole);}
   else {
-    if (QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) { // if ball is waiting to be launched
+    if (QuerySwitch(16)) { // if ball is waiting to be launched
       BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}  // restart watchdog
     else {                                            // if ball is really missing
       byte c = F14_CountBallsInTrunk();                // recount all balls
-      if (c == game_settings[F14set_InstalledBalls]) { // found all balls in trunk?
+      if (c == 4) { // found all balls in trunk?
         if (BlockOuthole) {                           // is the outhole blocked
           F14_BallEnd(0);}                             // then it was probably a ball loss gone wrong
         else {
-          ActivateTimer(1000, game_settings[F14set_InstalledBalls], F14_NewBall);}} // otherwise try it with a new ball
+          ActivateTimer(1000, 4, F14_NewBall);}} // otherwise try it with a new ball
       else {
         byte c2 = 0;                                  // counted balls in lock
                   // count balls in lock here with 5 being a warning when the switch states don't add up
@@ -551,9 +557,56 @@ void F14_SearchBall(byte Counter) {                    // ball watchdog timer ha
               Counter = 0;}                           // start again
             BallWatchdogTimer = ActivateTimer(1000, Counter, F14_SearchBall);}}}}}} // come again in 1s if no switch is activated
 
+// Called if a trough switch activates during game play.  This can happen if 
+// a ball skips the outhole switch and jumps right to the trough.
+void F14_BallSkippedOutholeCheck(byte Event) {
+  
+  static byte trough_settle_timer=0;
+  
+  switch (Event) {
+    case 0:  // If the timer is already running, do nothing, otherwise start the timer.
+      if (!trough_settle_timer) {
+         trough_settle_timer = ActivateTimer(1000, 1, F14_BallSkippedOutholeCheck);
+      }
+      break;
+    case 1:  // timer has allowed the trough to settle, so work out if we have more balls than expected
+      trough_settle_timer = 0;
+      if ( ((F14_CountBallsInTrunk() + InLock + Multiballs) > 4) && !BlockOuthole ) {
+        BlockOuthole = true;
+        F14_BallEnd(0);  // if we do have more than expected, should be safe to end ball
+      }
+  }
+
+}
+
+void F14_ShowAllPoints(byte Dummy) {
+  ShowAllPoints(0);
+
+  if (NoPlayers < 4) {
+    switch (Ball) {
+      case 1:
+        WritePlayerDisplay((char *) " BALL 1",4);
+        break;
+      case 2:
+        WritePlayerDisplay((char *) " BALL 2",4);
+        break;
+      case 3:
+        WritePlayerDisplay((char *) " BALL 3",4);
+        break;
+      case 4:
+        WritePlayerDisplay((char *) " BALL 4",4);
+        break;
+      case 5:
+        WritePlayerDisplay((char *) " BALL 5",4);
+        break;
+      
+    }
+  }
+}
+
 byte F14_CountBallsInTrunk() {
   byte Balls = 0;
-  for (i=0; i<game_settings[F14set_InstalledBalls]; i++) { // check how many balls are on the ball ramp
+  for (i=0; i<4; i++) { // check how many balls are on the ball ramp
     if (QuerySwitch(game_settings[F14set_BallThroughSwitches+i])) {
       if (Balls < i) {
         return 5;}                                    // send warning
@@ -573,7 +626,7 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
   if (Balls == 10) {                                  // indicating a previous trunk error
     WriteUpper("                ");
     WriteLower("                ");
-    ShowAllPoints(0);
+    F14_ShowAllPoints(0);
     BlinkScore(1);
     ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}
   byte c = F14_CountBallsInTrunk();
@@ -589,13 +642,14 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
       if ((c > Balls) || !c) {                        // more balls in trunk than expected or none at all
         WriteUpper("                ");
         WriteLower("                ");
-        ShowAllPoints(0);
+        F14_ShowAllPoints(0);
         BlinkScore(1);
         ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}}} // release again
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
 void F14_GameMain(byte Event) {                        // game switch events
   static unsigned long prev_switch_hit[75];
+  
   unsigned long time_now;
 
   // Debounce the switches - only pass on a switch event if it hasn't
@@ -630,10 +684,16 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 9:                                            // playfield tilt
     WriteUpper(" TILT  WARNING  ");
-    ActivateTimer(3000, 0, ShowAllPoints);
+    ActivateTimer(3000, 0, F14_ShowAllPoints);
     break;
   case 3:                                             // credit button
     F14_AddPlayer();
+    break;
+  case 11:   // if the trough switches activate 
+  case 12:   // then it might be because the ball
+  case 13:   // completely missed the outhole switch
+  case 14:   // so check how many balls there
+    F14_BallSkippedOutholeCheck(0);
     break;
   case 20:  // ramp entry
     F14_DivertorHandler(0);
@@ -731,8 +791,8 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 66: // right slingshot
     Points[Player] += 10;
     ShowPoints(Player);
-    ActivateSolenoid(0, 18);
-    ActC_BankSol(2);
+    ActivateSolenoid(0, 18);  // fire the sling
+    ActC_BankSol(2); // flasher
     break;
   case 68: // pop bumper
     Points[Player] += 100;
@@ -1383,8 +1443,8 @@ void F14_BonusHandler(byte Event){
 
 // Handle the line of death kickback
 // Event 0 - switch activated, so kick the ball back and increment the kills
-// Event 1 - just light the correct lamps based on the kill count (when switching players for example)
-// Event 2 - 
+// Event 1 - award kill without firing kickback
+// Event 2 - just light the correct lamps based on the kill count (when switching players for example)
 void F14_LineOfDeathHandler(byte Event) {
    if (APC_settings[DebugMode]){
     Serial.print("F14_LineOfDeathHandler event ");            // print address reference table
@@ -1397,13 +1457,19 @@ void F14_LineOfDeathHandler(byte Event) {
     case 0:
       ActivateSolenoid(0, 12);  // fall through to case 1 is correct in this case
     case 1: 
+      if (F14_ExtraBallLit[Player]) {
+        F14_AwardExtraBall();
+        F14_ExtraBallLit[Player] = 0;
+        TurnOffLamp(64);
+      }
       if (F14_Kills[Player]==7)
         return;
       F14_Kills[Player]++;
-      TurnOnLamp(101+F14_Kills[Player]);
+      //TurnOnLamp(101+F14_Kills[Player]);
       WriteUpper2("              ");
       WriteLower2("              ");
       SwitchDisplay(0);  // use the second buffer
+      Points[Player] += 50000;
       switch (F14_Kills[Player]) {
         case 1:
           WriteUpper2(" ALPHA  KILL  ");  
@@ -1425,11 +1491,15 @@ void F14_LineOfDeathHandler(byte Event) {
           break;
         case 7:
           WriteUpper2("  GOLF  KILL  ");  
+          if (!ExBalls) {
+            F14_ExtraBallLit[Player]=1;
+          }
           break;
       }
       WriteLower2("              ");
       kill_step = 0;
       kill_loop = 0;
+      F14_LineOfDeathHandler(2);  // update the lamps
       ActivateTimer(200,3,F14_LineOfDeathHandler);
       break;
     case 2:
@@ -1445,6 +1515,12 @@ void F14_LineOfDeathHandler(byte Event) {
       }
       else {
         TurnOffLamp(39);
+      }
+      if (F14_ExtraBallLit[Player]) {
+        TurnOnLamp(64);
+      }
+      else {
+        TurnOffLamp(64);
       }
       break;
     case 3:
@@ -2265,10 +2341,10 @@ void F14_BallEnd(byte Event) {
   byte BallsInTrunk = F14_CountBallsInTrunk();
   if ((BallsInTrunk == 5)||(BallsInTrunk < 4+1-Multiballs-InLock)) {
     InLock = 0;
-//    if (Multiballs == 1) {
-//      for (i=0; i<3; i++) {                           // Count your locked balls here
-//        if (Switch[41+i]) {
-//          InLock++;}}}
+    if (Multiballs == 1) {
+      for (i=0; i<3; i++) {                           // Count your locked balls here
+        if (QuerySwitch[21+i]) {
+          InLock++;}}}
     WriteLower(" BALL   ERROR   ");
     if (QuerySwitch(10)) { // ball still in outhole?
       ActA_BankSol(1); // make the coil a bit stronger
@@ -2316,7 +2392,7 @@ void F14_BallEnd(byte Event) {
 //            InLock++;}}
         ActivateTimer(1000, 0, F14_BallEnd);}
       else {
-        LockedBalls[Player] = 0;
+        //LockedBalls[Player] = 0;
         BlinkScore(0);                                // stop score blinking
         F14_AwardBonus(0);
         //F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
@@ -2328,7 +2404,10 @@ void F14_BallEnd2(byte Balls) {
     BallWatchdogTimer = 0;}
   if (ExBalls) {                                      // Player has extra balls
     ExBalls--;
-    ActivateTimer(1000, AppByte, F14_NewBall);
+    TurnOffLamp(4);
+    AddBlinkLamp(4,250);
+    ActivateTimer(1000, 0 , F14_ExtraBallReleased);
+    ActivateTimer(100, AppByte, F14_NewBall);
     BlockOuthole = false;}                            // remove outhole block
   else {                                              // Player has no extra balls
     if ((Points[Player] > HallOfFame.Scores[3]) && (Ball == APC_settings[NofBalls])) { // last ball & high score?
@@ -2353,6 +2432,22 @@ void F14_BallEnd3(byte Balls) {
       F14_CheckForLockedBalls(0);
       GameDefinition.AttractMode();}}}
 
+void F14_AwardExtraBall() {
+  ExBalls ++;
+  TurnOnLamp(4);
+}
+
+
+
+void F14_ExtraBallReleased(byte Event) {
+  if (QuerySwitch(16)) {                              // ball still in the shooting lane?
+    ActivateTimer(2000, Event, F14_ExtraBallReleased);}  // come back in2s
+  else {                                              // ball has been shot
+    RemoveBlinkLamp(4);
+    TurnOffLamp(4);
+    if (ExBalls) {                                    // player still has an extra balls
+      TurnOnLamp(4);}}}
+
 // End of ball bonus
 // Event 0 - award the bonus
 // all other events are internal timers / loops for the display
@@ -2369,7 +2464,7 @@ void F14_AwardBonus (byte Event) {
     case 0:
       total_bonus = F14_Bonus * F14_Multiplier * 1000;
       temp_bonus = F14_Bonus;
-      WritePlayerDisplay((char *) "BONUS ",1);
+      WritePlayerDisplay((char *) "BONUS  ",1);
       DisplayScore(2, F14_Bonus * 1000);
       break;
     case 1:
