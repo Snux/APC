@@ -215,6 +215,7 @@ void F14_AttractMode() {                               // Attract Mode
   Switch_Released = DummyProcess;
   AppByte2 = 0;
   LampReturn = F14_AttractLampCycle;
+  //LampShowXX(0);
   ActivateTimer(1000, 0, F14_AttractLampCycle);
   F14_AttractDisplayCycle(1);}
 
@@ -340,6 +341,8 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
     if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
       ShowLampPatterns(0);                            // stop lamp animations
+      //LampShowXX(0);
+      //LampShowYY(0);
       F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
         analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
@@ -377,10 +380,10 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[2] = 0;
       
       F14_LineOfDeathHandler(2);  // sort the kill lamps out
-      F14_RescueTargetHandler(0); // start the rescue target flip/flop
-      F14_1to6Handler(1);       // start the 1-6 lamps
+      //F14_RescueTargetHandler(0); // start the rescue target flip/flop
+      //F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
-      F14_TomcatTargetLamps();
+      //F14_TomcatTargetLamps();
       F14_Bonus = 0;
       F14_Multiplier = 1;
       ActivateSolenoid(0, 23);                        // enable flipper fingers
@@ -441,7 +444,8 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_Bonus = 0;
   ExBalls = 0;
   F14_BonusHandler(2);                                // Reset bonus lamps
-  F14_TomcatTargetLamps();
+  //LampShowXX(0);
+  //F14_TomcatTargetLamps();
   if (F14_Kills[Player] == 7) {  // reset kills if we completed them all on previous ball
     F14_Kills[Player] = 0;
   }
@@ -486,6 +490,7 @@ void F14_CheckShooterLaneSwitch(byte Switch) {
 
   if (Switch == 16) { // shooter lane switch released?
     Switch_Released = DummyProcess;
+    //LampShowXX(99);
     if (!BallWatchdogTimer) {
       BallWatchdogTimer = ActivateTimer(30000, 0, F14_SearchBall);}}}
 
@@ -579,6 +584,7 @@ void F14_BallSkippedOutholeCheck(byte Event) {
 
 }
 
+// 
 void F14_ShowAllPoints(byte Dummy) {
   ShowAllPoints(0);
 
@@ -3419,6 +3425,631 @@ static byte display_step_timer = 0;
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_SafeLandingAnimation);
+  }
+
+}
+
+
+void LampShowXX (byte Step) {
+static byte step_timer=0;
+ 
+switch (Step) {
+case 0:
+  TurnOnLamp(3);
+  TurnOnLamp(109);
+  TurnOnLamp(105);
+  TurnOffLamp(2);
+  break;
+case 1:
+  TurnOnLamp(104);
+  TurnOffLamp(105);
+  TurnOnLamp(5);
+  TurnOffLamp(2);
+  TurnOffLamp(111);
+  TurnOnLamp(54);
+  break;
+case 2:
+  TurnOnLamp(25);
+  TurnOffLamp(109);
+  TurnOffLamp(103);
+  TurnOffLamp(105);
+  TurnOffLamp(2);
+  TurnOnLamp(111);
+  break;
+case 3:
+  TurnOnLamp(26);
+  TurnOffLamp(109);
+  TurnOnLamp(102);
+  TurnOnLamp(103);
+  TurnOffLamp(104);
+  break;
+case 4:
+  TurnOffLamp(25);
+  TurnOffLamp(27);
+  TurnOffLamp(102);
+  TurnOffLamp(103);
+  TurnOffLamp(5);
+  TurnOnLamp(53);
+  break;
+case 5:
+  TurnOffLamp(26);
+  TurnOnLamp(27);
+  TurnOffLamp(102);
+  TurnOffLamp(5);
+  TurnOffLamp(59);
+  TurnOffLamp(111);
+  TurnOffLamp(114);
+  TurnOffLamp(54);
+  break;
+case 6:
+  TurnOnLamp(28);
+  TurnOnLamp(59);
+  TurnOffLamp(111);
+  TurnOnLamp(114);
+  TurnOffLamp(54);
+  break;
+case 7:
+  TurnOffLamp(27);
+  TurnOffLamp(3);
+  TurnOnLamp(62);
+  TurnOffLamp(52);
+  break;
+case 8:
+  TurnOffLamp(29);
+  TurnOffLamp(3);
+  TurnOffLamp(59);
+  TurnOffLamp(48);
+  TurnOffLamp(115);
+  TurnOnLamp(52);
+  break;
+case 9:
+  TurnOffLamp(28);
+  TurnOnLamp(29);
+  TurnOffLamp(3);
+  TurnOnLamp(39);
+  TurnOnLamp(8);
+  TurnOffLamp(62);
+  TurnOffLamp(59);
+  TurnOnLamp(48);
+  TurnOffLamp(33);
+  TurnOnLamp(115);
+  TurnOffLamp(53);
+  break;
+case 10:
+  TurnOffLamp(8);
+  TurnOffLamp(62);
+  TurnOnLamp(33);
+  TurnOffLamp(114);
+  TurnOffLamp(53);
+  break;
+case 11:
+  TurnOffLamp(29);
+  TurnOffLamp(30);
+  TurnOffLamp(39);
+  TurnOnLamp(34);
+  TurnOffLamp(116);
+  break;
+case 12:
+  TurnOffLamp(29);
+  TurnOnLamp(30);
+  TurnOffLamp(32);
+  TurnOnLamp(57);
+  TurnOffLamp(48);
+  TurnOffLamp(33);
+  TurnOnLamp(116);
+  TurnOffLamp(112);
+  TurnOffLamp(52);
+  break;
+case 13:
+  TurnOffLamp(23);
+  TurnOnLamp(32);
+  TurnOnLamp(60);
+  TurnOffLamp(35);
+  TurnOffLamp(115);
+  TurnOnLamp(112);
+  TurnOffLamp(52);
+  break;
+case 14:
+  TurnOnLamp(23);
+  TurnOffLamp(30);
+  TurnOffLamp(31);
+  TurnOffLamp(57);
+  TurnOnLamp(35);
+  TurnOffLamp(34);
+  TurnOnLamp(56);
+  TurnOffLamp(115);
+  break;
+case 15:
+  TurnOffLamp(30);
+  TurnOnLamp(31);
+  TurnOffLamp(60);
+  TurnOffLamp(57);
+  break;
+case 16:
+  TurnOffLamp(32);
+  TurnOffLamp(60);
+  TurnOnLamp(58);
+  TurnOffLamp(35);
+  TurnOnLamp(38);
+  break;
+case 17:
+  TurnOffLamp(22);
+  TurnOffLamp(23);
+  TurnOnLamp(55);
+  TurnOnLamp(61);
+  TurnOffLamp(56);
+  TurnOffLamp(116);
+  TurnOffLamp(110);
+  TurnOnLamp(49);
+  break;
+case 18:
+  TurnOnLamp(22);
+  TurnOffLamp(23);
+  TurnOffLamp(31);
+  TurnOffLamp(58);
+  TurnOffLamp(37);
+  TurnOffLamp(56);
+  TurnOffLamp(116);
+  TurnOnLamp(110);
+  break;
+case 19:
+  TurnOffLamp(31);
+  TurnOffLamp(61);
+  TurnOnLamp(37);
+  TurnOffLamp(38);
+  TurnOffLamp(112);
+  break;
+case 20:
+  TurnOffLamp(21);
+  TurnOnLamp(64);
+  TurnOnLamp(36);
+  TurnOffLamp(112);
+  break;
+case 21:
+  TurnOnLamp(21);
+  TurnOffLamp(22);
+  TurnOffLamp(55);
+  TurnOffLamp(1);
+  TurnOffLamp(37);
+  TurnOffLamp(113);
+  TurnOnLamp(50);
+  break;
+case 22:
+  TurnOffLamp(55);
+  TurnOnLamp(1);
+  TurnOffLamp(36);
+  TurnOnLamp(113);
+  TurnOffLamp(49);
+  break;
+case 23:
+  TurnOffLamp(20);
+  TurnOffLamp(36);
+  TurnOffLamp(110);
+  TurnOffLamp(49);
+  break;
+case 24:
+  TurnOffLamp(21);
+  TurnOnLamp(20);
+  TurnOffLamp(64);
+  TurnOffLamp(110);
+  TurnOnLamp(51);
+  break;
+case 25:
+  TurnOffLamp(19);
+  TurnOffLamp(63);
+  TurnOffLamp(50);
+  break;
+case 26:
+  TurnOnLamp(19);
+  TurnOffLamp(20);
+  TurnOnLamp(63);
+  TurnOffLamp(113);
+  TurnOffLamp(50);
+  break;
+case 27:
+  TurnOffLamp(18);
+  TurnOffLamp(108);
+  TurnOnLamp(40);
+  TurnOnLamp(2);
+  TurnOnLamp(7);
+  TurnOffLamp(113);
+  break;
+case 28:
+  TurnOnLamp(18);
+  TurnOffLamp(19);
+  TurnOnLamp(107);
+  TurnOnLamp(108);
+  TurnOffLamp(1);
+  TurnOffLamp(51);
+  break;
+case 29:
+  TurnOnLamp(17);
+  TurnOffLamp(18);
+  TurnOffLamp(109);
+  TurnOffLamp(106);
+  TurnOffLamp(108);
+  TurnOffLamp(1);
+  TurnOffLamp(63);
+  TurnOffLamp(51);
+  break;
+case 30:
+  TurnOffLamp(18);
+  TurnOnLamp(109);
+  TurnOffLamp(107);
+  TurnOffLamp(1);
+  TurnOffLamp(63);
+  TurnOffLamp(17);
+  TurnOffLamp(7);
+  break;
+  }
+  if (Step == 99) {
+    if (step_timer) {
+      KillTimer(step_timer);
+      step_timer=0;
+    }
+  }
+  else if (Step==30) {
+    step_timer=ActivateTimer(25,0,LampShowXX);
+  }
+  else {
+    step_timer = ActivateTimer(25, Step + 1, LampShowXX);
+  }
+}
+
+
+void LampShowYY (byte Step) {
+static byte step_timer=0;
+ 
+switch (Step) {
+case 0:
+  break;
+case 1:
+  TurnOnLamp(51);
+  TurnOnLamp(54);
+  break;
+case 2:
+  TurnOnLamp(32);
+  TurnOnLamp(2);
+  TurnOnLamp(56);
+  TurnOffLamp(51);
+  TurnOnLamp(50);
+  TurnOnLamp(53);
+  break;
+case 3:
+  TurnOnLamp(49);
+  TurnOffLamp(54);
+  TurnOnLamp(52);
+  break;
+case 4:
+  TurnOffLamp(32);
+  TurnOnLamp(55);
+  TurnOnLamp(3);
+  TurnOnLamp(1);
+  TurnOffLamp(2);
+  TurnOffLamp(56);
+  TurnOffLamp(50);
+  TurnOffLamp(53);
+  break;
+case 5:
+  TurnOffLamp(49);
+  TurnOffLamp(52);
+  break;
+case 6:
+  TurnOffLamp(55);
+  TurnOffLamp(3);
+  TurnOffLamp(1);
+  break;
+case 7:
+  TurnOnLamp(40);
+  break;
+  break;
+case 8:
+  TurnOffLamp(40);
+  TurnOnLamp(111);
+  TurnOnLamp(63);
+  break;
+  break;
+case 9:
+  TurnOnLamp(64);
+  TurnOnLamp(48);
+  TurnOffLamp(111);
+  TurnOffLamp(63);
+  TurnOnLamp(116);
+  TurnOnLamp(112);
+  break;
+case 10:
+  TurnOnLamp(115);
+  TurnOnLamp(110);
+  break;
+case 11:
+  TurnOnLamp(23);
+  TurnOnLamp(31);
+  TurnOffLamp(64);
+  TurnOffLamp(48);
+  TurnOffLamp(116);
+  TurnOnLamp(114);
+  TurnOnLamp(113);
+  TurnOffLamp(112);
+  break;
+case 12:
+  TurnOnLamp(30);
+  TurnOffLamp(115);
+  TurnOffLamp(110);
+  break;
+case 13:
+  TurnOnLamp(22);
+  TurnOffLamp(23);
+  TurnOffLamp(31);
+  TurnOnLamp(109);
+  TurnOnLamp(35);
+  TurnOffLamp(114);
+  TurnOffLamp(113);
+  break;
+case 14:
+  TurnOnLamp(21);
+  TurnOnLamp(29);
+  TurnOffLamp(30);
+  TurnOnLamp(5);
+  TurnOnLamp(38);
+  TurnOnLamp(7);
+  break;
+case 15:
+  TurnOffLamp(22);
+  TurnOffLamp(109);
+  TurnOffLamp(35);
+  TurnOnLamp(34);
+  TurnOnLamp(37);
+  break;
+case 16:
+  TurnOffLamp(21);
+  TurnOnLamp(28);
+  TurnOffLamp(29);
+  TurnOnLamp(20);
+  TurnOffLamp(5);
+  TurnOnLamp(33);
+  TurnOffLamp(38);
+  TurnOffLamp(7);
+  break;
+case 17:
+  TurnOnLamp(27);
+  TurnOffLamp(34);
+  TurnOffLamp(37);
+  TurnOnLamp(36);
+  break;
+case 18:
+  TurnOnLamp(19);
+  TurnOffLamp(28);
+  TurnOffLamp(20);
+  TurnOffLamp(33);
+  break;
+case 19:
+  TurnOnLamp(18);
+  TurnOnLamp(26);
+  TurnOnLamp(39);
+  TurnOffLamp(36);
+  break;
+case 20:
+  TurnOffLamp(19);
+  TurnOffLamp(27);
+  break;
+case 21:
+  TurnOnLamp(17);
+  TurnOnLamp(25);
+  TurnOffLamp(39);
+  break;
+case 22:
+  TurnOffLamp(18);
+  TurnOffLamp(26);
+  TurnOnLamp(105);
+  break;
+case 23:
+  TurnOffLamp(17);
+  TurnOffLamp(25);
+  TurnOnLamp(103);
+  TurnOnLamp(104);
+  TurnOnLamp(106);
+  TurnOnLamp(107);
+  break;
+case 24:
+  TurnOnLamp(102);
+  TurnOnLamp(108);
+  break;
+case 25:
+  TurnOffLamp(103);
+  TurnOffLamp(104);
+  TurnOffLamp(105);
+  TurnOffLamp(106);
+  TurnOffLamp(107);
+  break;
+case 26:
+  TurnOnLamp(16);
+  TurnOffLamp(102);
+  TurnOffLamp(108);
+  break;
+  break;
+case 27:
+  TurnOnLamp(4);
+  TurnOffLamp(16);
+  break;
+case 28:
+  TurnOffLamp(4);
+  TurnOnLamp(16);
+  break;
+  break;
+case 29:
+  TurnOffLamp(16);
+  TurnOnLamp(102);
+  TurnOnLamp(108);
+  break;
+case 30:
+  TurnOnLamp(103);
+  TurnOnLamp(104);
+  TurnOnLamp(105);
+  TurnOnLamp(106);
+  TurnOnLamp(107);
+  break;
+case 31:
+  TurnOffLamp(102);
+  TurnOffLamp(108);
+  break;
+case 32:
+  TurnOnLamp(17);
+  TurnOnLamp(25);
+  TurnOffLamp(103);
+  TurnOffLamp(104);
+  TurnOffLamp(106);
+  TurnOffLamp(107);
+  break;
+case 33:
+  TurnOnLamp(18);
+  TurnOnLamp(26);
+  TurnOffLamp(105);
+  break;
+case 34:
+  TurnOffLamp(17);
+  TurnOffLamp(25);
+  TurnOnLamp(39);
+  break;
+case 35:
+  TurnOnLamp(19);
+  TurnOnLamp(27);
+  break;
+case 36:
+  TurnOffLamp(18);
+  TurnOffLamp(26);
+  TurnOffLamp(39);
+  TurnOnLamp(36);
+  break;
+case 37:
+  TurnOffLamp(19);
+  TurnOnLamp(28);
+  TurnOnLamp(20);
+  TurnOnLamp(33);
+  break;
+case 38:
+  TurnOffLamp(27);
+  TurnOnLamp(34);
+  TurnOnLamp(37);
+  TurnOffLamp(36);
+  break;
+case 39:
+  TurnOnLamp(21);
+  TurnOffLamp(28);
+  TurnOnLamp(29);
+  TurnOffLamp(20);
+  TurnOnLamp(5);
+  TurnOffLamp(33);
+  TurnOnLamp(38);
+  TurnOnLamp(7);
+  break;
+case 40:
+  TurnOnLamp(22);
+  TurnOnLamp(109);
+  TurnOnLamp(35);
+  TurnOffLamp(34);
+  TurnOffLamp(37);
+  break;
+case 41:
+  TurnOffLamp(21);
+  TurnOffLamp(29);
+  TurnOnLamp(30);
+  TurnOffLamp(5);
+  TurnOffLamp(38);
+  TurnOffLamp(7);
+  break;
+case 42:
+  TurnOffLamp(22);
+  TurnOnLamp(23);
+  TurnOnLamp(31);
+  TurnOffLamp(109);
+  TurnOffLamp(35);
+  TurnOnLamp(114);
+  TurnOnLamp(113);
+  break;
+case 43:
+  TurnOffLamp(30);
+  TurnOnLamp(115);
+  TurnOnLamp(110);
+  break;
+case 44:
+  TurnOffLamp(23);
+  TurnOffLamp(31);
+  TurnOnLamp(64);
+  TurnOnLamp(48);
+  TurnOnLamp(116);
+  TurnOffLamp(114);
+  TurnOffLamp(113);
+  TurnOnLamp(112);
+  break;
+case 45:
+  TurnOffLamp(115);
+  TurnOffLamp(110);
+  break;
+case 46:
+  TurnOffLamp(64);
+  TurnOffLamp(48);
+  TurnOnLamp(111);
+  TurnOnLamp(63);
+  TurnOffLamp(116);
+  TurnOffLamp(112);
+  break;
+  break;
+case 47:
+  TurnOnLamp(40);
+  TurnOffLamp(111);
+  TurnOffLamp(63);
+  break;
+  break;
+case 48:
+  TurnOffLamp(40);
+  break;
+case 49:
+  TurnOnLamp(55);
+  TurnOnLamp(3);
+  TurnOnLamp(1);
+  break;
+case 50:
+  TurnOnLamp(49);
+  TurnOnLamp(52);
+  break;
+case 51:
+  TurnOnLamp(32);
+  TurnOffLamp(55);
+  TurnOffLamp(3);
+  TurnOffLamp(1);
+  TurnOnLamp(2);
+  TurnOnLamp(56);
+  TurnOnLamp(50);
+  TurnOnLamp(53);
+  break;
+case 52:
+  TurnOffLamp(49);
+  TurnOnLamp(54);
+  TurnOffLamp(52);
+  break;
+case 53:
+  TurnOffLamp(32);
+  TurnOffLamp(2);
+  TurnOffLamp(56);
+  TurnOnLamp(51);
+  TurnOffLamp(50);
+  TurnOffLamp(53);
+  break;
+case 54:
+  TurnOffLamp(51);
+  TurnOffLamp(54);
+  }
+if (Step == 99) {
+    if (step_timer) {
+      KillTimer(step_timer);
+      step_timer=0;
+    }
+  }
+  else if (Step==54) {
+    step_timer=ActivateTimer(25,0,LampShowYY);
+  }
+  else {
+    step_timer = ActivateTimer(25, Step + 1, LampShowYY);
   }
 
 }
