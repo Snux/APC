@@ -1,4 +1,18 @@
-// F14 Tomcat - APC code to play original WMS game
+
+
+//      ___________ __     ___    ____  ______
+//     / ____<  / // /    /   |  / __ \/ ____/
+//    / /_   / / // /_   / /| | / /_/ / /     
+//   / __/  / /__  __/  / ___ |/ ____/ /___   
+//  /_/    /_/  /_/____/_/  |_/_/    \____/   
+//               /_____/                      
+//
+// Code for F-14 Tomcat running on Arduino Pinball Controller
+//
+// General notes
+// - Each major "thing" on the game has a related "handler" which will take care of processing switch hits,
+//   lighting lamps, scoring etc etc.
+//   This keeps the main game switch handler simple.
 
 byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
@@ -23,14 +37,13 @@ char *BlinkUpper;
 char *BlinkLower;
 
 
+// All handlers in the game should generally have these events defined
+const byte LAMP_UPDATE=200;   // Update the lamps (between players, for example)
+const byte QUIT_HANDLER=201;  // The handler should shut down any timers, switch off lamps etc
+bool lamp_show_running=false; // If we are running a lampshow of some kind, this will be set
 
-const byte F14_OutholeSwitch = 10;                      // number of the outhole switch
-const byte F14_BallThroughSwitches[4] = {11,12,13,14};    // ball through switches from the plunger lane to the outhole
-const byte F14_PlungerLaneSwitch = 16;
-const byte F14_ACselectRelay = 14;                     // solenoid number of the A/C select relay - set it to 0 if the game doesn't have one
-const byte F14_OutholeKicker = 1;                      // solenoid number of the outhole kicker
-const byte F14_ShooterLaneFeeder = 2;                  // solenoid number of the shooter lane feeder
-const byte F14_InstalledBalls = 4;                     // number of balls installed in the game
+
+
 const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
 unsigned int F14_SolTimes[32] = {30,50,50,50,50,50,30,50,50,50,50,50,50,50,50,0,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
 
@@ -215,7 +228,6 @@ void F14_AttractMode() {                               // Attract Mode
   Switch_Released = DummyProcess;
   AppByte2 = 0;
   LampReturn = F14_AttractLampCycle;
-  //LampShowXX(0);
   ActivateTimer(1000, 0, F14_AttractLampCycle);
   F14_AttractDisplayCycle(1);}
 
@@ -305,6 +317,15 @@ void F14_AttractDisplayCycle(byte Step) {
   Timer0 = ActivateTimer(4000, Step, F14_AttractDisplayCycle);}  // come back for the next 'page'
 
 
+//      ___________ __     ___   __  __                  __  __  ___          __    ______       __
+//     / ____<  / // /    /   | / /_/ /__________ ______/ /_/  |/  /___  ____/ /__ / ___/ |     / /
+//    / /_   / / // /_   / /| |/ __/ __/ ___/ __ `/ ___/ __/ /|_/ / __ \/ __  / _ \\__ \| | /| / / 
+//   / __/  / /__  __/  / ___ / /_/ /_/ /  / /_/ / /__/ /_/ /  / / /_/ / /_/ /  __/__/ /| |/ |/ /  
+//  /_/    /_/  /_/____/_/  |_\__/\__/_/   \__,_/\___/\__/_/  /_/\____/\__,_/\___/____/ |__/|__/   
+//               /_____/                                                                           
+// 
+// Handles switch activation during attract mode.  Very few will actually process
+// just start, outhole (in case ball drain), settings button etc
 void F14_AttractModeSW(byte Button) {                  // Attract Mode switch behaviour
   if (APC_settings[DebugMode]){
     Serial.print("Attract mode switch = ");            // print address reference table
@@ -562,6 +583,8 @@ void F14_SearchBall(byte Counter) {                    // ball watchdog timer ha
               Counter = 0;}                           // start again
             BallWatchdogTimer = ActivateTimer(1000, Counter, F14_SearchBall);}}}}}} // come again in 1s if no switch is activated
 
+
+
 // Called if a trough switch activates during game play.  This can happen if 
 // a ball skips the outhole switch and jumps right to the trough.
 void F14_BallSkippedOutholeCheck(byte Event) {
@@ -584,9 +607,19 @@ void F14_BallSkippedOutholeCheck(byte Event) {
 
 }
 
-// 
+
+//      ___________ __    _____ __                  ___    ________        _       __      
+//     / ____<  / // /   / ___// /_  ____ _      __/   |  / / / __ \____  (_)___  / /______
+//    / /_   / / // /_   \__ \/ __ \/ __ \ | /| / / /| | / / / /_/ / __ \/ / __ \/ __/ ___/
+//   / __/  / /__  __/  ___/ / / / / /_/ / |/ |/ / ___ |/ / / ____/ /_/ / / / / / /_(__  ) 
+//  /_/    /_/  /_/____/____/_/ /_/\____/|__/|__/_/  |_/_/_/_/    \____/_/_/ /_/\__/____/  
+//               /_____/                                                                   
+//
+// The standard ShowAllPoints just shows the scores, but we want the display to show
+// the ball number too.
 void F14_ShowAllPoints(byte Dummy) {
-  ShowAllPoints(0);
+  
+  ShowAllPoints(0); // standard display
 
   if (NoPlayers < 4) {
     switch (Ball) {
@@ -810,6 +843,13 @@ void F14_GameMain(byte Event) {                        // game switch events
       ActivateTimer(200, 0, F14_ClearOuthole);}        // check again in 200ms
   }}
 
+
+//      ___________ __     __  __      __ _____ __                  __   __  __                ____         
+//     / ____<  / // /    / / / /___  / // ___// /_________  ____ _/ /__/ / / /___ _____  ____/ / /__  _____
+//    / /_   / / // /_   / /_/ / __ \/ __|__ \/ __/ ___/ _ \/ __ `/ //_/ /_/ / __ `/ __ \/ __  / / _ \/ ___/
+//   / __/  / /__  __/  / __  / /_/ / /____/ / /_/ /  /  __/ /_/ / ,< / __  / /_/ / / / / /_/ / /  __/ /    
+//  /_/    /_/  /_/____/_/ /_/\____/\__/____/\__/_/   \___/\__,_/_/|_/_/ /_/\__,_/_/ /_/\__,_/_/\___/_/     
+//               /_____/                                                                                    
 // After an orbit loop is completed, the hot streak lamp lights for a short time
 // Hits to the top TOMCAT targets score 10,000 -> 100,000 and reset the timer
 // Event 0 - enable Hotstreak
