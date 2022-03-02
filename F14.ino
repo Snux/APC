@@ -33,8 +33,13 @@ byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
-char *BlinkUpper;
-char *BlinkLower;
+
+// When we are running a lampshow, we will temporarily "repoint" the APC lamp update code
+// to our show arrays.  In this way the regular calls to TurnOn/TurnOff/Blink etc will update
+// the original Lamp/LED arrays in the background and will catch up when we flip back after show
+byte F14_ShowLamps[8];
+byte F14_ShowLEDs[8];
+const byte *apc_LEDStatus;
 
 
 // All handlers in the game should generally have these events defined
@@ -214,24 +219,29 @@ void F14_init() {
     Serial.begin(115200);
     Serial.println("Debug on");}
   GameDefinition = F14_GameDefinition;                // read the game specific settings and highscores
-  F14_GIOn(255,0,0);}                                        //switch on the gi
+}
+  
 
 void F14_AttractMode() {                               // Attract Mode
+  F14_GIOn(255,0,0);                                        //switch on the gi
   ACselectRelay = game_settings[F14set_ACselectRelay]; // assign the number of the A/C select relay
   if (ACselectRelay) {
     F14_SolTimes[ACselectRelay-1] = 0;}                // allow A/C relay to be turned on permanently
   DispRow1 = DisplayUpper;
   DispRow2 = DisplayLower;
   digitalWrite(VolumePin,HIGH);                       // set volume to zero
-  LampPattern = NoLamps;
+  //LampPattern = NoLamps;
   Switch_Pressed = F14_AttractModeSW;
   Switch_Released = DummyProcess;
   AppByte2 = 0;
-  LampReturn = F14_AttractLampCycle;
-  ActivateTimer(1000, 0, F14_AttractLampCycle);
-  F14_AttractDisplayCycle(1);}
+  //LampReturn = F14_AttractLampCycle;
+  //ActivateTimer(1000, 0, F14_AttractLampCycle);
+  F14_AttractDisplayCycle(1);
+  F14_LampShowPlayer(0,0);
+  }
 
 void F14_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
+  
   UNUSED(Event);
   PatPointer = F14_AttractFlow[AppByte2].FlowPat;      // set the pointer to the current series
   FlowRepeat = F14_AttractFlow[AppByte2].Repeat;       // set the repetitions
@@ -342,7 +352,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
 
   case 72:                                            // Service Mode
     BlinkScore(0);                                    // stop score blinking
-    ShowLampPatterns(0);                              // stop lamp animations
+    //ShowLampPatterns(0);                              // stop lamp animations
     KillAllTimers();
     BallWatchdogTimer = 0;
     CheckReleaseTimer = 0;
@@ -361,9 +371,10 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
   case 3:                                             // start game
     if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
-      ShowLampPatterns(0);                            // stop lamp animations
+      //ShowLampPatterns(0);                            // stop lamp animations
       //LampShowXX(0);
       //LampShowYY(0);
+      F14_LampShowPlayer(0,255);
       F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
         analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
@@ -401,10 +412,10 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[2] = 0;
       
       F14_LineOfDeathHandler(2);  // sort the kill lamps out
-      //F14_RescueTargetHandler(0); // start the rescue target flip/flop
-      //F14_1to6Handler(1);       // start the 1-6 lamps
+      F14_RescueTargetHandler(0); // start the rescue target flip/flop
+      F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
-      //F14_TomcatTargetLamps();
+      F14_TomcatTargetLamps();
       F14_Bonus = 0;
       F14_Multiplier = 1;
       ActivateSolenoid(0, 23);                        // enable flipper fingers
@@ -950,6 +961,64 @@ void F14_TomcatTargetLamps() {
   }
 }
 
+void F14Show_TurnOnLamp(byte Lamp) {
+  if (Lamp < 65) {                                    // is it a matrix lamp?
+    Lamp--;
+    F14_ShowLamps[Lamp / 8] |= 1<<(Lamp % 8);}
+  else {                                              // lamp numbers > 64 are additional LEDs
+    F14_ShowLEDhandling(3, Lamp - 65);}}
+
+void F14Show_TurnOffLamp(byte Lamp) {
+  if (Lamp < 65) {                                    // is it a matrix lamp?
+    Lamp--;
+    F14_ShowLamps[Lamp /8] &= 255-(1<<(Lamp % 8));}
+  else {                                              // lamp numbers > 64 are additional LEDs
+    F14_ShowLEDhandling(4, Lamp - 65);}}
+
+byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handler
+
+  
+  switch(Command) {
+  case 3:                                             // turn on LED
+    F14_ShowLEDs[Arg / 8] |= 1<<(Arg % 8);
+    break;
+  case 4:                                             // turn off LED
+    F14_ShowLEDs[Arg / 8] &= 255-(1<<(Arg % 8));
+    break;
+  case 5:                                             // query LED
+    return F14_ShowLEDs[Arg / 8] & 1<<(Arg % 8);
+}
+  return(0);}
+
+void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
+
+  // point the buffers correctly
+  switch (Arg) {
+    case 0: // start - point the LED and Lamp buffers to the F14Show versions
+      apc_LEDStatus = LEDpattern;  // make a note of where the current LED buffer is
+      LEDpattern = F14_ShowLEDs;
+      LampPattern = F14_ShowLamps;
+      break;
+    case 255: // stop
+      LEDpattern = apc_LEDStatus;  // reset the buffers
+      LampPattern = LampColumns;
+      break;
+  }
+  // call the lamp show player
+  switch (ShowNumber) {
+    case 0:
+      F14_LampShowRotate(Arg);  // rotating wheel lamp show
+      break;
+    case 1:
+      F14_LampShowUpDown(Arg);
+      break;
+    case 2:
+      if (Arg==0) {  // don't care about sending a stop as it stops by itself
+        F14_LampShowCentrePulse(0);
+      }
+  }
+}
+
 // Version of AddBlinkLamp that schedules immediately
 void AddBlinkLampImmediate(byte Lamp, unsigned int Period) {
   RemoveBlinkLamp(Lamp);                              // if the lamp is already blinking then stop it
@@ -964,7 +1033,7 @@ void AddBlinkLampImmediate(byte Lamp, unsigned int Period) {
           ErrorHandler(6,0,Lamp);}}                   // show error 6
       BlinkingLamps[x][0] = Lamp;                     // add the lamp
       BlinkingNo[x] = 1;                              // set the number of lamps for this timer to 1
-      BlinkState[x] = true;                           // start with lamps on
+      //BlinkState[x] = true;                           // start with lamps on
       BlinkPeriod[x] = Period;
       BlinkTimers++;                                  // increase the number of blink timers
       BlinkTimer[x] = ActivateTimer(Period, x, BlinkLamps);}} // start a timer and store it's number
@@ -1176,6 +1245,7 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[0]=1;  // Set the lock as occupied
       F14_LockLampHandler();
       F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LampShowPlayer(2,0);
       break;
     case 5: // Ball locked in 2
       F14_LockStatus[Player][1]=2;
@@ -1186,6 +1256,7 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[1]=1;
       F14_LockLampHandler();
       F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LampShowPlayer(2,0);
       break;
     case 6: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
@@ -1197,6 +1268,7 @@ void F14_LockHandler(byte Event) {
       F14_LockOccupied[2]=1;
       F14_LockLampHandler();
       F14_AnimationHandler(1,0);  // Enemy locked
+      F14_LampShowPlayer(2,0);
       break;
     // if a player has a lock in place (status 2), but the lock doesn't actually contain a ball
     // then reset the status of the lock back to 1 (lock is lit)
@@ -2236,6 +2308,7 @@ void F14_vUKHandler(byte Event) {
       if (Multiballs==1) { // single ball play
         F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
                                     // that will callback here with event 3 to continue
+        F14_LampShowPlayer(0,0);
       }
       else { // in multiball
         F14_AnimationHandler(5,0); // safe landing, no callback on that one, it just plays
@@ -2245,11 +2318,14 @@ void F14_vUKHandler(byte Event) {
       break;
     case 1:  // eject the ball
       PlayFlashSequence((byte *)F14_LockedOnSeq);
-      ActivateTimer(2000,2,F14_vUKHandler);
+      
+      ActivateTimer(10000,2,F14_vUKHandler);
       break;
     case 2:  // Timer over, send the ball on its way
+      F14_LampShowPlayer(0,255);
       ActA_BankSol(3);
       F14_DivertorHandler(0);   // let the divertor know a ball is on the way
+      
       break;
     case 3:  // continue running after launch bonus
         // work out if the ball is going to be locked (at least one lock with status 1)
@@ -2353,7 +2429,8 @@ void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the mome
   
   }*/
   for (int i=65; i < 102; i++) {
-    TurnOnLamp(i);}
+    TurnOnLamp(i);
+    F14Show_TurnOnLamp(i);}
   //TurnOnLamp(115);
       
   
@@ -3470,626 +3547,874 @@ static byte display_step_timer = 0;
 }
 
 
-void LampShowXX (byte Step) {
+void F14_LampShowRotate (byte Step) {
 static byte step_timer=0;
  
 switch (Step) {
 case 0:
-  TurnOnLamp(3);
-  TurnOnLamp(109);
-  TurnOnLamp(105);
-  TurnOffLamp(2);
+  F14Show_TurnOnLamp(3);
+  F14Show_TurnOnLamp(109);
+  F14Show_TurnOnLamp(105);
+  F14Show_TurnOffLamp(2);
   break;
 case 1:
-  TurnOnLamp(104);
-  TurnOffLamp(105);
-  TurnOnLamp(5);
-  TurnOffLamp(2);
-  TurnOffLamp(111);
-  TurnOnLamp(54);
+  F14Show_TurnOnLamp(104);
+  F14Show_TurnOffLamp(105);
+  F14Show_TurnOnLamp(5);
+  F14Show_TurnOffLamp(2);
+  F14Show_TurnOffLamp(111);
+  F14Show_TurnOnLamp(54);
   break;
 case 2:
-  TurnOnLamp(25);
-  TurnOffLamp(109);
-  TurnOffLamp(103);
-  TurnOffLamp(105);
-  TurnOffLamp(2);
-  TurnOnLamp(111);
+  F14Show_TurnOnLamp(25);
+  F14Show_TurnOffLamp(109);
+  F14Show_TurnOffLamp(103);
+  F14Show_TurnOffLamp(105);
+  F14Show_TurnOffLamp(2);
+  F14Show_TurnOnLamp(111);
   break;
 case 3:
-  TurnOnLamp(26);
-  TurnOffLamp(109);
-  TurnOnLamp(102);
-  TurnOnLamp(103);
-  TurnOffLamp(104);
+  F14Show_TurnOnLamp(26);
+  F14Show_TurnOffLamp(109);
+  F14Show_TurnOnLamp(102);
+  F14Show_TurnOnLamp(103);
+  F14Show_TurnOffLamp(104);
   break;
 case 4:
-  TurnOffLamp(25);
-  TurnOffLamp(27);
-  TurnOffLamp(102);
-  TurnOffLamp(103);
-  TurnOffLamp(5);
-  TurnOnLamp(53);
+  F14Show_TurnOffLamp(25);
+  F14Show_TurnOffLamp(27);
+  F14Show_TurnOffLamp(102);
+  F14Show_TurnOffLamp(103);
+  F14Show_TurnOffLamp(5);
+  F14Show_TurnOnLamp(53);
   break;
 case 5:
-  TurnOffLamp(26);
-  TurnOnLamp(27);
-  TurnOffLamp(102);
-  TurnOffLamp(5);
-  TurnOffLamp(59);
-  TurnOffLamp(111);
-  TurnOffLamp(114);
-  TurnOffLamp(54);
+  F14Show_TurnOffLamp(26);
+  F14Show_TurnOnLamp(27);
+  F14Show_TurnOffLamp(102);
+  F14Show_TurnOffLamp(5);
+  F14Show_TurnOffLamp(59);
+  F14Show_TurnOffLamp(111);
+  F14Show_TurnOffLamp(114);
+  F14Show_TurnOffLamp(54);
   break;
 case 6:
-  TurnOnLamp(28);
-  TurnOnLamp(59);
-  TurnOffLamp(111);
-  TurnOnLamp(114);
-  TurnOffLamp(54);
+  F14Show_TurnOnLamp(28);
+  F14Show_TurnOnLamp(59);
+  F14Show_TurnOffLamp(111);
+  F14Show_TurnOnLamp(114);
+  F14Show_TurnOffLamp(54);
   break;
 case 7:
-  TurnOffLamp(27);
-  TurnOffLamp(3);
-  TurnOnLamp(62);
-  TurnOffLamp(52);
+  F14Show_TurnOffLamp(27);
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOnLamp(62);
+  F14Show_TurnOffLamp(52);
   break;
 case 8:
-  TurnOffLamp(29);
-  TurnOffLamp(3);
-  TurnOffLamp(59);
-  TurnOffLamp(48);
-  TurnOffLamp(115);
-  TurnOnLamp(52);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOffLamp(59);
+  F14Show_TurnOffLamp(48);
+  F14Show_TurnOffLamp(115);
+  F14Show_TurnOnLamp(52);
   break;
 case 9:
-  TurnOffLamp(28);
-  TurnOnLamp(29);
-  TurnOffLamp(3);
-  TurnOnLamp(39);
-  TurnOnLamp(8);
-  TurnOffLamp(62);
-  TurnOffLamp(59);
-  TurnOnLamp(48);
-  TurnOffLamp(33);
-  TurnOnLamp(115);
-  TurnOffLamp(53);
+  F14Show_TurnOffLamp(28);
+  F14Show_TurnOnLamp(29);
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOnLamp(39);
+  F14Show_TurnOnLamp(8);
+  F14Show_TurnOffLamp(62);
+  F14Show_TurnOffLamp(59);
+  F14Show_TurnOnLamp(48);
+  F14Show_TurnOffLamp(33);
+  F14Show_TurnOnLamp(115);
+  F14Show_TurnOffLamp(53);
   break;
 case 10:
-  TurnOffLamp(8);
-  TurnOffLamp(62);
-  TurnOnLamp(33);
-  TurnOffLamp(114);
-  TurnOffLamp(53);
+  F14Show_TurnOffLamp(8);
+  F14Show_TurnOffLamp(62);
+  F14Show_TurnOnLamp(33);
+  F14Show_TurnOffLamp(114);
+  F14Show_TurnOffLamp(53);
   break;
 case 11:
-  TurnOffLamp(29);
-  TurnOffLamp(30);
-  TurnOffLamp(39);
-  TurnOnLamp(34);
-  TurnOffLamp(116);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOffLamp(30);
+  F14Show_TurnOffLamp(39);
+  F14Show_TurnOnLamp(34);
+  F14Show_TurnOffLamp(116);
   break;
 case 12:
-  TurnOffLamp(29);
-  TurnOnLamp(30);
-  TurnOffLamp(32);
-  TurnOnLamp(57);
-  TurnOffLamp(48);
-  TurnOffLamp(33);
-  TurnOnLamp(116);
-  TurnOffLamp(112);
-  TurnOffLamp(52);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOnLamp(30);
+  F14Show_TurnOffLamp(32);
+  F14Show_TurnOnLamp(57);
+  F14Show_TurnOffLamp(48);
+  F14Show_TurnOffLamp(33);
+  F14Show_TurnOnLamp(116);
+  F14Show_TurnOffLamp(112);
+  F14Show_TurnOffLamp(52);
   break;
 case 13:
-  TurnOffLamp(23);
-  TurnOnLamp(32);
-  TurnOnLamp(60);
-  TurnOffLamp(35);
-  TurnOffLamp(115);
-  TurnOnLamp(112);
-  TurnOffLamp(52);
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOnLamp(32);
+  F14Show_TurnOnLamp(60);
+  F14Show_TurnOffLamp(35);
+  F14Show_TurnOffLamp(115);
+  F14Show_TurnOnLamp(112);
+  F14Show_TurnOffLamp(52);
   break;
 case 14:
-  TurnOnLamp(23);
-  TurnOffLamp(30);
-  TurnOffLamp(31);
-  TurnOffLamp(57);
-  TurnOnLamp(35);
-  TurnOffLamp(34);
-  TurnOnLamp(56);
-  TurnOffLamp(115);
+  F14Show_TurnOnLamp(23);
+  F14Show_TurnOffLamp(30);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOffLamp(57);
+  F14Show_TurnOnLamp(35);
+  F14Show_TurnOffLamp(34);
+  F14Show_TurnOnLamp(56);
+  F14Show_TurnOffLamp(115);
   break;
 case 15:
-  TurnOffLamp(30);
-  TurnOnLamp(31);
-  TurnOffLamp(60);
-  TurnOffLamp(57);
+  F14Show_TurnOffLamp(30);
+  F14Show_TurnOnLamp(31);
+  F14Show_TurnOffLamp(60);
+  F14Show_TurnOffLamp(57);
   break;
 case 16:
-  TurnOffLamp(32);
-  TurnOffLamp(60);
-  TurnOnLamp(58);
-  TurnOffLamp(35);
-  TurnOnLamp(38);
+  F14Show_TurnOffLamp(32);
+  F14Show_TurnOffLamp(60);
+  F14Show_TurnOnLamp(58);
+  F14Show_TurnOffLamp(35);
+  F14Show_TurnOnLamp(38);
   break;
 case 17:
-  TurnOffLamp(22);
-  TurnOffLamp(23);
-  TurnOnLamp(55);
-  TurnOnLamp(61);
-  TurnOffLamp(56);
-  TurnOffLamp(116);
-  TurnOffLamp(110);
-  TurnOnLamp(49);
+  F14Show_TurnOffLamp(22);
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOnLamp(55);
+  F14Show_TurnOnLamp(61);
+  F14Show_TurnOffLamp(56);
+  F14Show_TurnOffLamp(116);
+  F14Show_TurnOffLamp(110);
+  F14Show_TurnOnLamp(49);
   break;
 case 18:
-  TurnOnLamp(22);
-  TurnOffLamp(23);
-  TurnOffLamp(31);
-  TurnOffLamp(58);
-  TurnOffLamp(37);
-  TurnOffLamp(56);
-  TurnOffLamp(116);
-  TurnOnLamp(110);
+  F14Show_TurnOnLamp(22);
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOffLamp(58);
+  F14Show_TurnOffLamp(37);
+  F14Show_TurnOffLamp(56);
+  F14Show_TurnOffLamp(116);
+  F14Show_TurnOnLamp(110);
   break;
 case 19:
-  TurnOffLamp(31);
-  TurnOffLamp(61);
-  TurnOnLamp(37);
-  TurnOffLamp(38);
-  TurnOffLamp(112);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOffLamp(61);
+  F14Show_TurnOnLamp(37);
+  F14Show_TurnOffLamp(38);
+  F14Show_TurnOffLamp(112);
   break;
 case 20:
-  TurnOffLamp(21);
-  TurnOnLamp(64);
-  TurnOnLamp(36);
-  TurnOffLamp(112);
+  F14Show_TurnOffLamp(21);
+  F14Show_TurnOnLamp(64);
+  F14Show_TurnOnLamp(36);
+  F14Show_TurnOffLamp(112);
   break;
 case 21:
-  TurnOnLamp(21);
-  TurnOffLamp(22);
-  TurnOffLamp(55);
-  TurnOffLamp(1);
-  TurnOffLamp(37);
-  TurnOffLamp(113);
-  TurnOnLamp(50);
+  F14Show_TurnOnLamp(21);
+  F14Show_TurnOffLamp(22);
+  F14Show_TurnOffLamp(55);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOffLamp(37);
+  F14Show_TurnOffLamp(113);
+  F14Show_TurnOnLamp(50);
   break;
 case 22:
-  TurnOffLamp(55);
-  TurnOnLamp(1);
-  TurnOffLamp(36);
-  TurnOnLamp(113);
-  TurnOffLamp(49);
+  F14Show_TurnOffLamp(55);
+  F14Show_TurnOnLamp(1);
+  F14Show_TurnOffLamp(36);
+  F14Show_TurnOnLamp(113);
+  F14Show_TurnOffLamp(49);
   break;
 case 23:
-  TurnOffLamp(20);
-  TurnOffLamp(36);
-  TurnOffLamp(110);
-  TurnOffLamp(49);
+  F14Show_TurnOffLamp(20);
+  F14Show_TurnOffLamp(36);
+  F14Show_TurnOffLamp(110);
+  F14Show_TurnOffLamp(49);
   break;
 case 24:
-  TurnOffLamp(21);
-  TurnOnLamp(20);
-  TurnOffLamp(64);
-  TurnOffLamp(110);
-  TurnOnLamp(51);
+  F14Show_TurnOffLamp(21);
+  F14Show_TurnOnLamp(20);
+  F14Show_TurnOffLamp(64);
+  F14Show_TurnOffLamp(110);
+  F14Show_TurnOnLamp(51);
   break;
 case 25:
-  TurnOffLamp(19);
-  TurnOffLamp(63);
-  TurnOffLamp(50);
+  F14Show_TurnOffLamp(19);
+  F14Show_TurnOffLamp(63);
+  F14Show_TurnOffLamp(50);
   break;
 case 26:
-  TurnOnLamp(19);
-  TurnOffLamp(20);
-  TurnOnLamp(63);
-  TurnOffLamp(113);
-  TurnOffLamp(50);
+  F14Show_TurnOnLamp(19);
+  F14Show_TurnOffLamp(20);
+  F14Show_TurnOnLamp(63);
+  F14Show_TurnOffLamp(113);
+  F14Show_TurnOffLamp(50);
   break;
 case 27:
-  TurnOffLamp(18);
-  TurnOffLamp(108);
-  TurnOnLamp(40);
-  TurnOnLamp(2);
-  TurnOnLamp(7);
-  TurnOffLamp(113);
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOffLamp(108);
+  F14Show_TurnOnLamp(40);
+  F14Show_TurnOnLamp(2);
+  F14Show_TurnOnLamp(7);
+  F14Show_TurnOffLamp(113);
   break;
 case 28:
-  TurnOnLamp(18);
-  TurnOffLamp(19);
-  TurnOnLamp(107);
-  TurnOnLamp(108);
-  TurnOffLamp(1);
-  TurnOffLamp(51);
+  F14Show_TurnOnLamp(18);
+  F14Show_TurnOffLamp(19);
+  F14Show_TurnOnLamp(107);
+  F14Show_TurnOnLamp(108);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOffLamp(51);
   break;
 case 29:
-  TurnOnLamp(17);
-  TurnOffLamp(18);
-  TurnOffLamp(109);
-  TurnOffLamp(106);
-  TurnOffLamp(108);
-  TurnOffLamp(1);
-  TurnOffLamp(63);
-  TurnOffLamp(51);
+  F14Show_TurnOnLamp(17);
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOffLamp(109);
+  F14Show_TurnOffLamp(106);
+  F14Show_TurnOffLamp(108);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOffLamp(63);
+  F14Show_TurnOffLamp(51);
   break;
 case 30:
-  TurnOffLamp(18);
-  TurnOnLamp(109);
-  TurnOffLamp(107);
-  TurnOffLamp(1);
-  TurnOffLamp(63);
-  TurnOffLamp(17);
-  TurnOffLamp(7);
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOnLamp(109);
+  F14Show_TurnOffLamp(107);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOffLamp(63);
+  F14Show_TurnOffLamp(17);
+  F14Show_TurnOffLamp(7);
   break;
   }
-  if (Step == 99) {
+  if (Step == 255) {
     if (step_timer) {
       KillTimer(step_timer);
       step_timer=0;
     }
   }
   else if (Step==30) {
-    step_timer=ActivateTimer(25,0,LampShowXX);
+    step_timer=ActivateTimer(25,0,F14_LampShowRotate);
   }
   else {
-    step_timer = ActivateTimer(25, Step + 1, LampShowXX);
+    step_timer = ActivateTimer(25, Step + 1, F14_LampShowRotate);
   }
 }
 
 
-void LampShowYY (byte Step) {
+void F14_LampShowUpDown (byte Step) {
 static byte step_timer=0;
  
 switch (Step) {
 case 0:
   break;
 case 1:
-  TurnOnLamp(51);
-  TurnOnLamp(54);
+  F14Show_TurnOnLamp(51);
+  F14Show_TurnOnLamp(54);
   break;
 case 2:
-  TurnOnLamp(32);
-  TurnOnLamp(2);
-  TurnOnLamp(56);
-  TurnOffLamp(51);
-  TurnOnLamp(50);
-  TurnOnLamp(53);
+  F14Show_TurnOnLamp(32);
+  F14Show_TurnOnLamp(2);
+  F14Show_TurnOnLamp(56);
+  F14Show_TurnOffLamp(51);
+  F14Show_TurnOnLamp(50);
+  F14Show_TurnOnLamp(53);
   break;
 case 3:
-  TurnOnLamp(49);
-  TurnOffLamp(54);
-  TurnOnLamp(52);
+  F14Show_TurnOnLamp(49);
+  F14Show_TurnOffLamp(54);
+  F14Show_TurnOnLamp(52);
   break;
 case 4:
-  TurnOffLamp(32);
-  TurnOnLamp(55);
-  TurnOnLamp(3);
-  TurnOnLamp(1);
-  TurnOffLamp(2);
-  TurnOffLamp(56);
-  TurnOffLamp(50);
-  TurnOffLamp(53);
+  F14Show_TurnOffLamp(32);
+  F14Show_TurnOnLamp(55);
+  F14Show_TurnOnLamp(3);
+  F14Show_TurnOnLamp(1);
+  F14Show_TurnOffLamp(2);
+  F14Show_TurnOffLamp(56);
+  F14Show_TurnOffLamp(50);
+  F14Show_TurnOffLamp(53);
   break;
 case 5:
-  TurnOffLamp(49);
-  TurnOffLamp(52);
+  F14Show_TurnOffLamp(49);
+  F14Show_TurnOffLamp(52);
   break;
 case 6:
-  TurnOffLamp(55);
-  TurnOffLamp(3);
-  TurnOffLamp(1);
+  F14Show_TurnOffLamp(55);
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOffLamp(1);
   break;
 case 7:
-  TurnOnLamp(40);
+  F14Show_TurnOnLamp(40);
   break;
   break;
 case 8:
-  TurnOffLamp(40);
-  TurnOnLamp(111);
-  TurnOnLamp(63);
+  F14Show_TurnOffLamp(40);
+  F14Show_TurnOnLamp(111);
+  F14Show_TurnOnLamp(63);
   break;
   break;
 case 9:
-  TurnOnLamp(64);
-  TurnOnLamp(48);
-  TurnOffLamp(111);
-  TurnOffLamp(63);
-  TurnOnLamp(116);
-  TurnOnLamp(112);
+  F14Show_TurnOnLamp(64);
+  F14Show_TurnOnLamp(48);
+  F14Show_TurnOffLamp(111);
+  F14Show_TurnOffLamp(63);
+  F14Show_TurnOnLamp(116);
+  F14Show_TurnOnLamp(112);
   break;
 case 10:
-  TurnOnLamp(115);
-  TurnOnLamp(110);
+  F14Show_TurnOnLamp(115);
+  F14Show_TurnOnLamp(110);
   break;
 case 11:
-  TurnOnLamp(23);
-  TurnOnLamp(31);
-  TurnOffLamp(64);
-  TurnOffLamp(48);
-  TurnOffLamp(116);
-  TurnOnLamp(114);
-  TurnOnLamp(113);
-  TurnOffLamp(112);
+  F14Show_TurnOnLamp(23);
+  F14Show_TurnOnLamp(31);
+  F14Show_TurnOffLamp(64);
+  F14Show_TurnOffLamp(48);
+  F14Show_TurnOffLamp(116);
+  F14Show_TurnOnLamp(114);
+  F14Show_TurnOnLamp(113);
+  F14Show_TurnOffLamp(112);
   break;
 case 12:
-  TurnOnLamp(30);
-  TurnOffLamp(115);
-  TurnOffLamp(110);
+  F14Show_TurnOnLamp(30);
+  F14Show_TurnOffLamp(115);
+  F14Show_TurnOffLamp(110);
   break;
 case 13:
-  TurnOnLamp(22);
-  TurnOffLamp(23);
-  TurnOffLamp(31);
-  TurnOnLamp(109);
-  TurnOnLamp(35);
-  TurnOffLamp(114);
-  TurnOffLamp(113);
+  F14Show_TurnOnLamp(22);
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOnLamp(109);
+  F14Show_TurnOnLamp(35);
+  F14Show_TurnOffLamp(114);
+  F14Show_TurnOffLamp(113);
   break;
 case 14:
-  TurnOnLamp(21);
-  TurnOnLamp(29);
-  TurnOffLamp(30);
-  TurnOnLamp(5);
-  TurnOnLamp(38);
-  TurnOnLamp(7);
+  F14Show_TurnOnLamp(21);
+  F14Show_TurnOnLamp(29);
+  F14Show_TurnOffLamp(30);
+  F14Show_TurnOnLamp(5);
+  F14Show_TurnOnLamp(38);
+  F14Show_TurnOnLamp(7);
   break;
 case 15:
-  TurnOffLamp(22);
-  TurnOffLamp(109);
-  TurnOffLamp(35);
-  TurnOnLamp(34);
-  TurnOnLamp(37);
+  F14Show_TurnOffLamp(22);
+  F14Show_TurnOffLamp(109);
+  F14Show_TurnOffLamp(35);
+  F14Show_TurnOnLamp(34);
+  F14Show_TurnOnLamp(37);
   break;
 case 16:
-  TurnOffLamp(21);
-  TurnOnLamp(28);
-  TurnOffLamp(29);
-  TurnOnLamp(20);
-  TurnOffLamp(5);
-  TurnOnLamp(33);
-  TurnOffLamp(38);
-  TurnOffLamp(7);
+  F14Show_TurnOffLamp(21);
+  F14Show_TurnOnLamp(28);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOnLamp(20);
+  F14Show_TurnOffLamp(5);
+  F14Show_TurnOnLamp(33);
+  F14Show_TurnOffLamp(38);
+  F14Show_TurnOffLamp(7);
   break;
 case 17:
-  TurnOnLamp(27);
-  TurnOffLamp(34);
-  TurnOffLamp(37);
-  TurnOnLamp(36);
+  F14Show_TurnOnLamp(27);
+  F14Show_TurnOffLamp(34);
+  F14Show_TurnOffLamp(37);
+  F14Show_TurnOnLamp(36);
   break;
 case 18:
-  TurnOnLamp(19);
-  TurnOffLamp(28);
-  TurnOffLamp(20);
-  TurnOffLamp(33);
+  F14Show_TurnOnLamp(19);
+  F14Show_TurnOffLamp(28);
+  F14Show_TurnOffLamp(20);
+  F14Show_TurnOffLamp(33);
   break;
 case 19:
-  TurnOnLamp(18);
-  TurnOnLamp(26);
-  TurnOnLamp(39);
-  TurnOffLamp(36);
+  F14Show_TurnOnLamp(18);
+  F14Show_TurnOnLamp(26);
+  F14Show_TurnOnLamp(39);
+  F14Show_TurnOffLamp(36);
   break;
 case 20:
-  TurnOffLamp(19);
-  TurnOffLamp(27);
+  F14Show_TurnOffLamp(19);
+  F14Show_TurnOffLamp(27);
   break;
 case 21:
-  TurnOnLamp(17);
-  TurnOnLamp(25);
-  TurnOffLamp(39);
+  F14Show_TurnOnLamp(17);
+  F14Show_TurnOnLamp(25);
+  F14Show_TurnOffLamp(39);
   break;
 case 22:
-  TurnOffLamp(18);
-  TurnOffLamp(26);
-  TurnOnLamp(105);
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOffLamp(26);
+  F14Show_TurnOnLamp(105);
   break;
 case 23:
-  TurnOffLamp(17);
-  TurnOffLamp(25);
-  TurnOnLamp(103);
-  TurnOnLamp(104);
-  TurnOnLamp(106);
-  TurnOnLamp(107);
+  F14Show_TurnOffLamp(17);
+  F14Show_TurnOffLamp(25);
+  F14Show_TurnOnLamp(103);
+  F14Show_TurnOnLamp(104);
+  F14Show_TurnOnLamp(106);
+  F14Show_TurnOnLamp(107);
   break;
 case 24:
-  TurnOnLamp(102);
-  TurnOnLamp(108);
+  F14Show_TurnOnLamp(102);
+  F14Show_TurnOnLamp(108);
   break;
 case 25:
-  TurnOffLamp(103);
-  TurnOffLamp(104);
-  TurnOffLamp(105);
-  TurnOffLamp(106);
-  TurnOffLamp(107);
+  F14Show_TurnOffLamp(103);
+  F14Show_TurnOffLamp(104);
+  F14Show_TurnOffLamp(105);
+  F14Show_TurnOffLamp(106);
+  F14Show_TurnOffLamp(107);
   break;
 case 26:
-  TurnOnLamp(16);
-  TurnOffLamp(102);
-  TurnOffLamp(108);
+  F14Show_TurnOnLamp(16);
+  F14Show_TurnOffLamp(102);
+  F14Show_TurnOffLamp(108);
   break;
   break;
 case 27:
-  TurnOnLamp(4);
-  TurnOffLamp(16);
+  F14Show_TurnOnLamp(4);
+  F14Show_TurnOffLamp(16);
   break;
 case 28:
-  TurnOffLamp(4);
-  TurnOnLamp(16);
+  F14Show_TurnOffLamp(4);
+  F14Show_TurnOnLamp(16);
   break;
   break;
 case 29:
-  TurnOffLamp(16);
-  TurnOnLamp(102);
-  TurnOnLamp(108);
+  F14Show_TurnOffLamp(16);
+  F14Show_TurnOnLamp(102);
+  F14Show_TurnOnLamp(108);
   break;
 case 30:
-  TurnOnLamp(103);
-  TurnOnLamp(104);
-  TurnOnLamp(105);
-  TurnOnLamp(106);
-  TurnOnLamp(107);
+  F14Show_TurnOnLamp(103);
+  F14Show_TurnOnLamp(104);
+  F14Show_TurnOnLamp(105);
+  F14Show_TurnOnLamp(106);
+  F14Show_TurnOnLamp(107);
   break;
 case 31:
-  TurnOffLamp(102);
-  TurnOffLamp(108);
+  F14Show_TurnOffLamp(102);
+  F14Show_TurnOffLamp(108);
   break;
 case 32:
-  TurnOnLamp(17);
-  TurnOnLamp(25);
-  TurnOffLamp(103);
-  TurnOffLamp(104);
-  TurnOffLamp(106);
-  TurnOffLamp(107);
+  F14Show_TurnOnLamp(17);
+  F14Show_TurnOnLamp(25);
+  F14Show_TurnOffLamp(103);
+  F14Show_TurnOffLamp(104);
+  F14Show_TurnOffLamp(106);
+  F14Show_TurnOffLamp(107);
   break;
 case 33:
-  TurnOnLamp(18);
-  TurnOnLamp(26);
-  TurnOffLamp(105);
+  F14Show_TurnOnLamp(18);
+  F14Show_TurnOnLamp(26);
+  F14Show_TurnOffLamp(105);
   break;
 case 34:
-  TurnOffLamp(17);
-  TurnOffLamp(25);
-  TurnOnLamp(39);
+  F14Show_TurnOffLamp(17);
+  F14Show_TurnOffLamp(25);
+  F14Show_TurnOnLamp(39);
   break;
 case 35:
-  TurnOnLamp(19);
-  TurnOnLamp(27);
+  F14Show_TurnOnLamp(19);
+  F14Show_TurnOnLamp(27);
   break;
 case 36:
-  TurnOffLamp(18);
-  TurnOffLamp(26);
-  TurnOffLamp(39);
-  TurnOnLamp(36);
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOffLamp(26);
+  F14Show_TurnOffLamp(39);
+  F14Show_TurnOnLamp(36);
   break;
 case 37:
-  TurnOffLamp(19);
-  TurnOnLamp(28);
-  TurnOnLamp(20);
-  TurnOnLamp(33);
+  F14Show_TurnOffLamp(19);
+  F14Show_TurnOnLamp(28);
+  F14Show_TurnOnLamp(20);
+  F14Show_TurnOnLamp(33);
   break;
 case 38:
-  TurnOffLamp(27);
-  TurnOnLamp(34);
-  TurnOnLamp(37);
-  TurnOffLamp(36);
+  F14Show_TurnOffLamp(27);
+  F14Show_TurnOnLamp(34);
+  F14Show_TurnOnLamp(37);
+  F14Show_TurnOffLamp(36);
   break;
 case 39:
-  TurnOnLamp(21);
-  TurnOffLamp(28);
-  TurnOnLamp(29);
-  TurnOffLamp(20);
-  TurnOnLamp(5);
-  TurnOffLamp(33);
-  TurnOnLamp(38);
-  TurnOnLamp(7);
+  F14Show_TurnOnLamp(21);
+  F14Show_TurnOffLamp(28);
+  F14Show_TurnOnLamp(29);
+  F14Show_TurnOffLamp(20);
+  F14Show_TurnOnLamp(5);
+  F14Show_TurnOffLamp(33);
+  F14Show_TurnOnLamp(38);
+  F14Show_TurnOnLamp(7);
   break;
 case 40:
-  TurnOnLamp(22);
-  TurnOnLamp(109);
-  TurnOnLamp(35);
-  TurnOffLamp(34);
-  TurnOffLamp(37);
+  F14Show_TurnOnLamp(22);
+  F14Show_TurnOnLamp(109);
+  F14Show_TurnOnLamp(35);
+  F14Show_TurnOffLamp(34);
+  F14Show_TurnOffLamp(37);
   break;
 case 41:
-  TurnOffLamp(21);
-  TurnOffLamp(29);
-  TurnOnLamp(30);
-  TurnOffLamp(5);
-  TurnOffLamp(38);
-  TurnOffLamp(7);
+  F14Show_TurnOffLamp(21);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOnLamp(30);
+  F14Show_TurnOffLamp(5);
+  F14Show_TurnOffLamp(38);
+  F14Show_TurnOffLamp(7);
   break;
 case 42:
-  TurnOffLamp(22);
-  TurnOnLamp(23);
-  TurnOnLamp(31);
-  TurnOffLamp(109);
-  TurnOffLamp(35);
-  TurnOnLamp(114);
-  TurnOnLamp(113);
+  F14Show_TurnOffLamp(22);
+  F14Show_TurnOnLamp(23);
+  F14Show_TurnOnLamp(31);
+  F14Show_TurnOffLamp(109);
+  F14Show_TurnOffLamp(35);
+  F14Show_TurnOnLamp(114);
+  F14Show_TurnOnLamp(113);
   break;
 case 43:
-  TurnOffLamp(30);
-  TurnOnLamp(115);
-  TurnOnLamp(110);
+  F14Show_TurnOffLamp(30);
+  F14Show_TurnOnLamp(115);
+  F14Show_TurnOnLamp(110);
   break;
 case 44:
-  TurnOffLamp(23);
-  TurnOffLamp(31);
-  TurnOnLamp(64);
-  TurnOnLamp(48);
-  TurnOnLamp(116);
-  TurnOffLamp(114);
-  TurnOffLamp(113);
-  TurnOnLamp(112);
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOnLamp(64);
+  F14Show_TurnOnLamp(48);
+  F14Show_TurnOnLamp(116);
+  F14Show_TurnOffLamp(114);
+  F14Show_TurnOffLamp(113);
+  F14Show_TurnOnLamp(112);
   break;
 case 45:
-  TurnOffLamp(115);
-  TurnOffLamp(110);
+  F14Show_TurnOffLamp(115);
+  F14Show_TurnOffLamp(110);
   break;
 case 46:
-  TurnOffLamp(64);
-  TurnOffLamp(48);
-  TurnOnLamp(111);
-  TurnOnLamp(63);
-  TurnOffLamp(116);
-  TurnOffLamp(112);
+  F14Show_TurnOffLamp(64);
+  F14Show_TurnOffLamp(48);
+  F14Show_TurnOnLamp(111);
+  F14Show_TurnOnLamp(63);
+  F14Show_TurnOffLamp(116);
+  F14Show_TurnOffLamp(112);
   break;
   break;
 case 47:
-  TurnOnLamp(40);
-  TurnOffLamp(111);
-  TurnOffLamp(63);
+  F14Show_TurnOnLamp(40);
+  F14Show_TurnOffLamp(111);
+  F14Show_TurnOffLamp(63);
   break;
   break;
 case 48:
-  TurnOffLamp(40);
+  F14Show_TurnOffLamp(40);
   break;
 case 49:
-  TurnOnLamp(55);
-  TurnOnLamp(3);
-  TurnOnLamp(1);
+  F14Show_TurnOnLamp(55);
+  F14Show_TurnOnLamp(3);
+  F14Show_TurnOnLamp(1);
   break;
 case 50:
-  TurnOnLamp(49);
-  TurnOnLamp(52);
+  F14Show_TurnOnLamp(49);
+  F14Show_TurnOnLamp(52);
   break;
 case 51:
-  TurnOnLamp(32);
-  TurnOffLamp(55);
-  TurnOffLamp(3);
-  TurnOffLamp(1);
-  TurnOnLamp(2);
-  TurnOnLamp(56);
-  TurnOnLamp(50);
-  TurnOnLamp(53);
+  F14Show_TurnOnLamp(32);
+  F14Show_TurnOffLamp(55);
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOnLamp(2);
+  F14Show_TurnOnLamp(56);
+  F14Show_TurnOnLamp(50);
+  F14Show_TurnOnLamp(53);
   break;
 case 52:
-  TurnOffLamp(49);
-  TurnOnLamp(54);
-  TurnOffLamp(52);
+  F14Show_TurnOffLamp(49);
+  F14Show_TurnOnLamp(54);
+  F14Show_TurnOffLamp(52);
   break;
 case 53:
-  TurnOffLamp(32);
-  TurnOffLamp(2);
-  TurnOffLamp(56);
-  TurnOnLamp(51);
-  TurnOffLamp(50);
-  TurnOffLamp(53);
+  F14Show_TurnOffLamp(32);
+  F14Show_TurnOffLamp(2);
+  F14Show_TurnOffLamp(56);
+  F14Show_TurnOnLamp(51);
+  F14Show_TurnOffLamp(50);
+  F14Show_TurnOffLamp(53);
   break;
 case 54:
-  TurnOffLamp(51);
-  TurnOffLamp(54);
+  F14Show_TurnOffLamp(51);
+  F14Show_TurnOffLamp(54);
   }
-if (Step == 99) {
+if (Step == 255) {
     if (step_timer) {
       KillTimer(step_timer);
       step_timer=0;
     }
   }
   else if (Step==54) {
-    step_timer=ActivateTimer(25,0,LampShowYY);
+    step_timer=ActivateTimer(25,0,F14_LampShowUpDown);
   }
   else {
-    step_timer = ActivateTimer(25, Step + 1, LampShowYY);
+    step_timer = ActivateTimer(25, Step + 1, F14_LampShowUpDown);
   }
 
+}
+
+
+void F14_LampShowCentrePulse (byte Step) {
+static byte step_timer=0;
+ 
+switch (Step) {
+case 0:
+  break;
+case 1:
+  break;
+case 2:
+  break;
+case 3:
+  F14Show_TurnOnLamp(3);
+  F14Show_TurnOnLamp(1);
+  F14Show_TurnOnLamp(110);
+  F14Show_TurnOnLamp(112);
+  break;
+case 4:
+  F14Show_TurnOnLamp(116);
+  F14Show_TurnOnLamp(115);
+  F14Show_TurnOnLamp(114);
+  F14Show_TurnOnLamp(113);
+  break;
+case 5:
+  break;
+case 6:
+  F14Show_TurnOnLamp(109);
+  break;
+case 7:
+  F14Show_TurnOnLamp(5);
+  F14Show_TurnOnLamp(2);
+  F14Show_TurnOnLamp(7);
+  break;
+case 8:
+  break;
+case 9:
+  F14Show_TurnOnLamp(49);
+  break;
+case 10:
+  F14Show_TurnOnLamp(50);
+  F14Show_TurnOnLamp(53);
+  F14Show_TurnOnLamp(52);
+  break;
+case 11:
+  F14Show_TurnOnLamp(54);
+  break;
+case 12:
+  F14Show_TurnOnLamp(21);
+  F14Show_TurnOnLamp(22);
+  F14Show_TurnOnLamp(51);
+  break;
+case 13:
+  F14Show_TurnOnLamp(23);
+  F14Show_TurnOnLamp(20);
+  break;
+case 14:
+  break;
+case 15:
+  F14Show_TurnOnLamp(19);
+  F14Show_TurnOnLamp(28);
+  F14Show_TurnOnLamp(29);
+  F14Show_TurnOnLamp(30);
+  break;
+case 16:
+  F14Show_TurnOnLamp(18);
+  F14Show_TurnOnLamp(27);
+  F14Show_TurnOnLamp(31);
+  F14Show_TurnOnLamp(48);
+  break;
+case 17:
+  F14Show_TurnOnLamp(55);
+  break;
+case 18:
+  F14Show_TurnOnLamp(26);
+  break;
+case 19:
+  F14Show_TurnOnLamp(17);
+  F14Show_TurnOnLamp(64);
+  F14Show_TurnOnLamp(37);
+  F14Show_TurnOnLamp(38);
+  break;
+case 20:
+  F14Show_TurnOnLamp(25);
+  F14Show_TurnOnLamp(36);
+  F14Show_TurnOnLamp(111);
+  break;
+case 21:
+  F14Show_TurnOnLamp(105);
+  break;
+case 22:
+  F14Show_TurnOnLamp(106);
+  F14Show_TurnOnLamp(107);
+  F14Show_TurnOnLamp(35);
+  break;
+case 23:
+  F14Show_TurnOnLamp(32);
+  F14Show_TurnOnLamp(104);
+  F14Show_TurnOnLamp(108);
+  F14Show_TurnOnLamp(34);
+  F14Show_TurnOnLamp(33);
+  break;
+case 24:
+  F14Show_TurnOnLamp(103);
+  F14Show_TurnOnLamp(63);
+  F14Show_TurnOnLamp(56);
+  break;
+case 25:
+  break;
+case 26:
+  F14Show_TurnOnLamp(16);
+  F14Show_TurnOnLamp(102);
+  F14Show_TurnOnLamp(40);
+  break;
+case 27:
+  break;
+case 28:
+  break;
+case 29:
+  F14Show_TurnOnLamp(4);
+  break;
+case 30:
+  break;
+case 31:
+  break;
+case 32:
+  F14Show_TurnOffLamp(4);
+  break;
+case 33:
+  break;
+case 34:
+  break;
+case 35:
+  F14Show_TurnOffLamp(16);
+  F14Show_TurnOffLamp(102);
+  F14Show_TurnOffLamp(40);
+  break;
+case 36:
+  break;
+case 37:
+  F14Show_TurnOffLamp(103);
+  F14Show_TurnOffLamp(63);
+  F14Show_TurnOffLamp(56);
+  break;
+case 38:
+  F14Show_TurnOffLamp(32);
+  F14Show_TurnOffLamp(104);
+  F14Show_TurnOffLamp(108);
+  F14Show_TurnOffLamp(34);
+  F14Show_TurnOffLamp(33);
+  break;
+case 39:
+  F14Show_TurnOffLamp(106);
+  F14Show_TurnOffLamp(107);
+  F14Show_TurnOffLamp(35);
+  break;
+case 40:
+  F14Show_TurnOffLamp(105);
+  break;
+case 41:
+  F14Show_TurnOffLamp(25);
+  F14Show_TurnOffLamp(36);
+  F14Show_TurnOffLamp(111);
+  break;
+case 42:
+  F14Show_TurnOffLamp(17);
+  F14Show_TurnOffLamp(64);
+  F14Show_TurnOffLamp(37);
+  F14Show_TurnOffLamp(38);
+  break;
+case 43:
+  F14Show_TurnOffLamp(26);
+  break;
+case 44:
+  F14Show_TurnOffLamp(55);
+  break;
+case 45:
+  F14Show_TurnOffLamp(18);
+  F14Show_TurnOffLamp(27);
+  F14Show_TurnOffLamp(31);
+  F14Show_TurnOffLamp(48);
+  break;
+case 46:
+  F14Show_TurnOffLamp(19);
+  F14Show_TurnOffLamp(28);
+  F14Show_TurnOffLamp(29);
+  F14Show_TurnOffLamp(30);
+  break;
+case 47:
+  break;
+case 48:
+  F14Show_TurnOffLamp(23);
+  F14Show_TurnOffLamp(20);
+  break;
+case 49:
+  F14Show_TurnOffLamp(21);
+  F14Show_TurnOffLamp(22);
+  F14Show_TurnOffLamp(51);
+  break;
+case 50:
+  F14Show_TurnOffLamp(54);
+  break;
+case 51:
+  F14Show_TurnOffLamp(50);
+  F14Show_TurnOffLamp(53);
+  F14Show_TurnOffLamp(52);
+  break;
+case 52:
+  F14Show_TurnOffLamp(49);
+  break;
+case 53:
+  break;
+case 54:
+  F14Show_TurnOffLamp(5);
+  F14Show_TurnOffLamp(2);
+  F14Show_TurnOffLamp(7);
+  break;
+case 55:
+  F14Show_TurnOffLamp(109);
+  break;
+case 56:
+  break;
+case 57:
+  F14Show_TurnOffLamp(116);
+  F14Show_TurnOffLamp(115);
+  F14Show_TurnOffLamp(114);
+  F14Show_TurnOffLamp(113);
+  break;
+case 58:
+  F14Show_TurnOffLamp(3);
+  F14Show_TurnOffLamp(1);
+  F14Show_TurnOffLamp(110);
+  F14Show_TurnOffLamp(112);
+  break;
+case 59:
+  break;
+case 60:
+  break;
+case 61:
+  break;
+  }
+  if (Step > 62) {
+    F14_LampShowPlayer(2,255);  // Tell the player we are done
+  }
+  else {
+    ActivateTimer(20, Step + 1, F14_LampShowCentrePulse);
+  }
 }
