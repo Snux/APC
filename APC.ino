@@ -78,7 +78,11 @@ byte DisplayUpper[32];                                // changeable display buff
 byte DisplayLower[32];
 byte DisplayUpper2[32];                               // second changeable display buffer
 byte DisplayLower2[32];
-const byte *LampPattern;                              // determines which lamp pattern is to be shown (for Lamps > 8)
+const uint16_t *LEDpatDuration;                       // sets the time until the next LED pattern is shown
+const byte *LEDpattern;                               // determines which LED pattern is to be shown (only active with 'LED lamps' = 'Additional' and depends on the 'No of LEDs' setting)
+const byte *LEDpointer;                               // Pointer to the LED flow to be shown
+void (*LEDreturn)(byte);                              // Pointer to the procedure to be executed after the LED flow has been shown
+const byte *LampPattern;                              // determines which lamp pattern is to be shown (depends on the 'Backbox Lamps' setting)
 const byte *LampBuffer;
 byte LampColumns[8];                                  // stores the status of all lamp columns
 bool StrobeLightsOn;                                  // Indicates that the playfield lamps are strobing
@@ -910,6 +914,8 @@ byte LEDhandling(byte Command, byte Arg) {            // main LED handler
   case 1:                                             // init
     if (!Timer) {
       Timer = ActivateTimer(1, Arg, LEDtimer);}
+    if (APC_settings[LEDsetting] == 1) {              // LEDsetting = Additional?
+      LEDpattern = LEDstatus;}                        // switch to standard LED array
     break;
   case 2:                                             // timer call
     if (Arg > 19) {                                   // 20ms over
@@ -925,7 +931,7 @@ byte LEDhandling(byte Command, byte Arg) {            // main LED handler
           else {
             LampData = *(LampPattern+Arg);}}
         else {                                        // additional LEDs selected
-          LampData = LEDstatus[Arg];}}
+          LampData = *(LEDpattern+Arg);}}
       if (PolarityFlag) {                             // data bus of LED_exp board works with toggling select
         PolarityFlag = false;
         WriteToHwExt(LampData, 1);}                   // write lamp pattern with Sel5 falling edge
@@ -1428,7 +1434,9 @@ void AddScrollUpper(byte Step) {                      // call with Step = 0 and 
     if (Step == 8) {                                  // skip position 9 (belongs to the credit display
       Step++;}
     if (!DisplayUpper[32-(2*Step)] && !DisplayUpper[33-(2*Step)] && Step < 14) {  // stop when reaching anything else but blanks or after 14 characters
-      Timer = ActivateTimer(50, Step, AddScrollUpper);}}}
+      Timer = ActivateTimer(50, Step, AddScrollUpper);}
+    else {
+      Timer = 0;}}}
 
 void ScrollLower(byte Step) {                         // call with Step = 0 and the text being in DisplayLower2 / stop with Step = 100
   static byte Timer = 0;
@@ -2006,6 +2014,27 @@ void ShowFileNotFound(String Filename) {              // show file not found mes
   WriteUpper2(NameBuffer);                            // write filename to message buffer
   WriteLower2(" NOT    FOUND   ");
   ShowMessage(5);}                                    // switch to message buffer for 5 seconds
+
+void ShowLEDpatterns(byte Step) {
+  static byte Timer = 0;
+  if ((Step > 1) || (Step ==1 && !Timer)) {           // no kill signal
+    if (Step == 1) {
+      Step++;}
+    unsigned int Buffer = *(LEDpatDuration+Step-2);
+    LEDsetColor(*(LEDpointer+11*(Step-2)), *(LEDpointer+11*(Step-2)+1), *(LEDpointer+11*(Step-2)+2));
+    LEDpattern = LEDpointer+11*(Step-2)+3;                 // TODO adapt
+    Step++;
+    if (!(*(LEDpatDuration+Step-2))) {
+      Timer = 0;
+      if (LEDreturn) {
+        LEDreturn(0);}
+      return;}
+    Timer = ActivateTimer(Buffer, Step, ShowLEDpatterns);}
+  else {
+    if (!Step) {
+      if (Timer) {
+        KillTimer(Timer);
+        Timer = 0;}}}}
 
 void ShowLampPatterns(byte Step) {                    // shows a series of lamp patterns - start with step being one - stop with step being zero
   static byte Timer = 0;
