@@ -96,7 +96,6 @@ struct LampFlow {                                     // defines a series of lam
 short FlowRepeat = 0;                                 // number of repeats for the LampFlow
 void (*LampReturn)(byte);                             // Pointer to the procedure to be executed after the lamp flow has been shown
 byte BlinkTimers = 0;                                 // number of active blink timers
-byte BlinkState[8];
 byte BlinkTimer[65];                                  // timer used for blinking lamps
 byte BlinkingNo[65];                                  // number of lamps using this BlinkTimer
 unsigned int BlinkPeriod[65];                         // blink period for this timer
@@ -197,7 +196,7 @@ const byte APC_defaults[64] =  {0,3,3,1,2,0,0,0,      // system default settings
 #define DebugMode  10                                 // debug mode enabled?
 #define BackboxLamps 11																// Column of backbox lamps
 
-const char TxTGameSelect[6][17] = {{" BASE  CODE     "},{" BLACK KNIGHT   "},{"    PINBOT      "},{"REMOTE CONTROL  "},{"   TUTORIAL     "},{" F-14 TOMCAT   "}};
+const char TxTGameSelect[6][17] = {{" BASE  CODE     "},{" BLACK KNIGHT   "},{"    PINBOT      "},{"REMOTE CONTROL  "},{"   TUTORIAL     "},{"   F14          "}};
 const char TxTLEDSelect[4][17] = {{"   NO   LEDS    "},{"   ADDITIONAL   "},{"PLAYFLD ONLY    "},{"PLAYFLDBACKBOX  "}};
 const char TxTDisplaySelect[9][17] = {{"4 ALPHA+CREDIT  "},{" SYS11 PINBOT   "},{" SYS11  F-14    "},{" SYS11  BK2K    "},{" SYS11   TAXI   "},{" SYS11 RIVERBOAT"},{" DATA EAST 2X16"},{"123456123456    "},{"12345671234567  "}};
 const char TxTConType[3][17] = {{"        OFF     "},{"       ONBOARD  "},{"        USB     "}};
@@ -205,7 +204,7 @@ const char TxTLampColSelect[3][17] = {{"       COLUMN1  "},{"       COLUMN8  "},
 
 const struct SettingTopic APC_setList[15] = {
     {"DISPLAY TYPE    ",HandleDisplaySetting,&TxTDisplaySelect[0][0],0,8},
-    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,5},
+    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,4},
     {" NO OF  BALLS   ",HandleNumSetting,0,1,5},
     {"  FREE  GAME    ",HandleBoolSetting,0,0,0},
     {"CONNECT TYPE    ",HandleTextSetting,&TxTConType[0][0],0,2},
@@ -370,19 +369,19 @@ void Init_System() {
 void Init_System2(byte State) {                       // state = 0 will restore the settings if no card is found
   switch(APC_settings[ActiveGame]) {                  // init calls for all valid games
   case 0:
-    //BC_init();
+    BC_init();
     break;
   case 1:
-    //BK_init();
+    BK_init();
     break;
   case 2:
-    //PB_init();
+    PB_init();
     break;
   case 3:
     USB_init();
     break;
   case 4:
-    //TT_init();
+    TT_init();
     break;
   case 5:
     F14_init();
@@ -1936,7 +1935,7 @@ void SwitchDisplay(byte Event) {                      // switch between differen
     DispRow2 = DisplayLower2;}}
 
 void BlinkLamps(byte BlTimer) {
-  //static byte BlinkState[8];
+  static byte BlinkState[8];
   byte c = 0;
   bool CurrentState = BlinkState[BlTimer / 8] & 1<<(BlTimer % 8);
   for (byte i=0; i<BlinkingNo[BlTimer]; i++) {        // for all lamps controlled by this blink timer
@@ -1987,7 +1986,7 @@ void AddBlinkLamp(byte Lamp, unsigned int Period) {
           ErrorHandler(6,0,Lamp);}}                   // show error 6
       BlinkingLamps[x][0] = Lamp;                     // add the lamp
       BlinkingNo[x] = 1;                              // set the number of lamps for this timer to 1
-      BlinkState[x] = true;                           // start with lamps on
+      //BlinkState[x] = true;                           // start with lamps on
       BlinkPeriod[x] = Period;
       BlinkTimers++;                                  // increase the number of blink timers
       BlinkTimer[x] = ActivateTimer(Period, x, BlinkLamps);}}} // start a timer and store it's number
