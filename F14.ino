@@ -28,6 +28,7 @@ byte F14_LockOccupied[3]; // does the lock contain a ball.  0 = no, 1 = yes, 2 =
 byte F14_LandingStatus[5][3]; // Track status of multiball progress towards fighter jackpot
 byte F14_YagovKills[5];  // tracks how many times we killed Yagov
 byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
+byte F14_TomcatsCompleted[5]; // how many times has the player completed T-O-M-C-A-T
 byte F14_LaunchBonus;
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
@@ -400,6 +401,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
         F14_ExtraBallLit[i]=0;
         Points[i] = 0;
         F14_Kills[i]=0;  // How many kills (Alpha -> Golf) has the player made
+        F14_TomcatsCompleted[i]=0;
         for (byte j=0; j<3; j++) {
           F14_LockStatus[i][j]=0;
           F14_LandingStatus[i][j]=0;
@@ -777,7 +779,7 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 36:
   case 37:
   case 38:
-    F14_TomcatTargetHandler(0,Event-33);
+    F14_TomcatTargetHandler(Event-33);
     break;
   // Centre 1-6 targets
   case 41:
@@ -800,7 +802,7 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 53:
   case 54:
     F14_HotStreakHandler(1);
-    F14_TomcatTargetHandler(0,Event-43);
+    F14_TomcatTargetHandler(Event-43);
     break;
   // Line of death (Yagov)
   case 55:
@@ -1001,6 +1003,7 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
       break;
     case 255: // stop
       LEDpattern = apc_LEDStatus;  // reset the buffers
+      //LEDinit(); 
       LampPattern = LampColumns;
       break;
   }
@@ -1212,7 +1215,7 @@ void F14_LockHandler(byte Event) {
       if (!locks_available)
         return;
       
-      F14_AnimationHandler(2,0);  // lock is lit animation
+      //F14_AnimationHandler(2,0);  // lock is lit animation (moved to target handler)
 
       if (F14_LockStatus[Player][0]==0) {
         F14_LockHandler(1);
@@ -1322,6 +1325,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 22: // Lock number 1
       if (Multiballs==1) { // single ball play
+        F14_BonusHandler(0); // increment end of ball bonus
         if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[0]=1;
           break;
@@ -1348,6 +1352,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 23: // Lock number 2
       if (Multiballs==1) {
+        F14_BonusHandler(0); // increment end of ball bonus
         if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[1]=1;
           break;
@@ -1373,6 +1378,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 21: // Lock number 3
       if (Multiballs==1) {
+        F14_BonusHandler(0); // increment end of ball bonus
         if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[2]=1;
           break;
@@ -1931,9 +1937,7 @@ void F14_DivertorHandler(byte Event) {
 }
 
 // Handle one of the TOMCAT targets being hit
-// Event 0 is a hit target
-// Event 1 is a spotted target (handle as 0 for now)
-void F14_TomcatTargetHandler(byte Event, byte Target) {
+void F14_TomcatTargetHandler(byte Target) {
   byte lit_target_count = 0;
 
   // Target is still flashing, so score it
@@ -1958,7 +1962,12 @@ void F14_TomcatTargetHandler(byte Event, byte Target) {
         for (byte j=0; j<12; j++) {
           F14_TomcatTargets[Player][j]=0;}
         if (Multiballs==1) { // not during multiball
+          F14_AnimationHandler(2,0);
           F14_LockHandler(0); // Tell the lock handler we can light another lock
+          F14_TomcatsCompleted[Player] += 1;
+          if (F14_TomcatsCompleted[Player] == 1) {
+            F14_LockHandler(0);  // for the first completion only, light another lock
+          }
         }
       }
       F14_TomcatTargetLamps();
@@ -2036,11 +2045,15 @@ void F14_1to6Handler(byte Event) {
 // one and call the handler to light it
 byte F14_SpotTomcat() {
   // Find the first unlit target, there will always be 1 as all 12 are never lit
-  for (byte i=0; i<12; i++){
-    if (F14_TomcatTargets[Player][i]==0)
+  byte spot_target;
+  for (spot_target=0; spot_target<12; spot_target++){
+    if (F14_TomcatTargets[Player][spot_target]==0)
       break;
   }
-  F14_TomcatTargetHandler(1,i);
+  F14_TomcatTargetHandler(spot_target);
+  if (APC_settings[DebugMode]) {
+    Serial.print("F14_SpotTomcat spotted ");
+    Serial.println((byte) spot_target); }
 }
 
 
@@ -2121,7 +2134,7 @@ void F14_OrbitHandler(byte Event) {
       break;
     case 2:
       right_bonusX_lit = 1;
-      AddBlinkLamp(55,300);
+      AddBlinkLamp(55,150);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
@@ -2130,7 +2143,7 @@ void F14_OrbitHandler(byte Event) {
       break;
     case 3:
       left_bonusX_lit = 1;
-      AddBlinkLamp(32,300);
+      AddBlinkLamp(32,150);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
@@ -2141,8 +2154,8 @@ void F14_OrbitHandler(byte Event) {
     case 4:
       left_bonusX_lit = 1;
       right_bonusX_lit = 1;
-      AddBlinkLamp(32,300);
-      AddBlinkLamp(55,300);
+      AddBlinkLamp(32,150);
+      AddBlinkLamp(55,150);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
@@ -2257,7 +2270,7 @@ void F14_RescueKickerHandler(byte Event){
           ActivateSolenoid(0,13);  // Fire the kicker
           F14_RescueKickerStatus = 2;
           TurnOffLamp(8);  // Turn the lamp off
-          AddBlinkLamp(8,40);  // then blink it
+          AddBlinkLamp(8,100);  // then blink it
           grace_timer = ActivateTimer(2000, 2, F14_RescueKickerHandler);  // cancel in 2 secs
           break;
         case 2:
@@ -2308,6 +2321,9 @@ void F14_vUKHandler(byte Event) {
       if (Multiballs==1) { // single ball play
         F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
                                     // that will callback here with event 3 to continue
+        F14_BonusHandler(0); // increment end of ball bonus
+        F14_BonusHandler(0); // increment end of ball bonus (again for 2k!)
+        F14_SpotTomcat();
         F14_LampShowPlayer(0,0);
       }
       else { // in multiball
@@ -2319,10 +2335,11 @@ void F14_vUKHandler(byte Event) {
     case 1:  // eject the ball
       PlayFlashSequence((byte *)F14_LockedOnSeq);
       
-      ActivateTimer(10000,2,F14_vUKHandler);
+      ActivateTimer(1000,2,F14_vUKHandler);
       break;
     case 2:  // Timer over, send the ball on its way
       F14_LampShowPlayer(0,255);
+      noisy_switch_timer = ActivateTimer(100,4,F14_vUKHandler);  // handle noisy switch on eject
       ActA_BankSol(3);
       F14_DivertorHandler(0);   // let the divertor know a ball is on the way
       
@@ -2500,6 +2517,7 @@ void F14_BallEnd(byte Event) {
     case 2:                                           // end multiball
       Multiballs = 1;
       ReleaseSolenoid(16); // switch off the beacons
+      F14_LockLampHandler(); // tidy up the lock lamps
       WriteLower("                ");
       if (BallsInTrunk == game_settings[F14set_InstalledBalls]) { // all balls in trunk?
         ActivateTimer(1000, 0, F14_BallEnd);}
