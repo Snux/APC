@@ -20,6 +20,7 @@ byte Command = 0;                                       // LED command currently
 byte CommandCount = 0;                                  // counts the bytes received by the color select command
 byte TurnOn[6][8];                                      // the list of the lamps currently being turned on
 byte TurnOff[6][8];                                     // the list of the lamps currently being turned off
+uint32_t Ring;
 
 void setup() {
   pixels.begin();
@@ -129,6 +130,10 @@ void loop() {
           break;
         case 170:                                       // sync command
           Sync = 0;                                     // the next four cycles (8 bytes) represent a lamp pattern
+          Ring = pixels.getPixelColor(54);      // Get the color of the first ring pixel
+          for (i=55; i<70; i++) {
+            pixels.setPixelColor(i,Ring); // Set the rest of the ring the same
+          }
           pixels.show();                                // update the LEDs
           break;
         case 192:                                       // color select command
