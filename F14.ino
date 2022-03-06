@@ -224,7 +224,7 @@ void F14_init() {
   
 
 void F14_AttractMode() {                               // Attract Mode
-  F14_GIOn(255,0,0);                                        //switch on the gi
+  F14_GIOn(255,255,255);                                        //switch on the gi
   ACselectRelay = game_settings[F14set_ACselectRelay]; // assign the number of the A/C select relay
   if (ACselectRelay) {
     F14_SolTimes[ACselectRelay-1] = 0;}                // allow A/C relay to be turned on permanently
@@ -997,13 +997,13 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
   // point the buffers correctly
   switch (Arg) {
     case 0: // start - point the LED and Lamp buffers to the F14Show versions
-      apc_LEDStatus = LEDpattern;  // make a note of where the current LED buffer is
+      //apc_LEDStatus = LEDpattern;  // make a note of where the current LED buffer is
       LEDpattern = F14_ShowLEDs;
       LampPattern = F14_ShowLamps;
       break;
     case 255: // stop
-      LEDpattern = apc_LEDStatus;  // reset the buffers
-      //LEDinit(); 
+      //LEDpattern = apc_LEDStatus;  // reset the buffers
+      LEDinit(); 
       LampPattern = LampColumns;
       break;
   }
@@ -2429,29 +2429,26 @@ void F14_AnimationHandler(byte Animation, byte Status) {
 
 
 void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the moment
-  //LEDsetColor(Red, Green, Blue);
-  /*if (F14_GI_IsOn) {
+  LEDsetColorMode(1);
+  LEDsetColor(Red, Green, Blue);
+  if (F14_GI_IsOn) {
+    F14_GIChangeColour(65);
+  }
+  else {
     for (int i=65; i < 102; i++) {
-      LEDchangeColor(i);}
-  } else {
-   
-   if (APC_settings[DebugMode]){
-    Serial.print("GI on colour = ");            // print address reference table
-    Serial.print((byte)Red);
-    Serial.print(",");
-    Serial.print((byte)Green);
-    Serial.print(",");
-    Serial.println((byte)Blue);
-    Serial.println(",");
-  
-  }*/
-  for (int i=65; i < 102; i++) {
-    TurnOnLamp(i);
-    F14Show_TurnOnLamp(i);}
-  //TurnOnLamp(115);
-      
+      TurnOnLamp(i);
+      F14Show_TurnOnLamp(i);}
+    //TurnOnLamp(115);
+  }    
   
   F14_GI_IsOn = 1;
+}
+
+void F14_GIChangeColour(byte Lamp) {
+  LEDchangeColor(Lamp);
+  if (Lamp < 102) {
+    ActivateTimer(17,Lamp+1,F14_GIChangeColour);
+  }
 }
 
 void F14_GIOff() {
@@ -3234,6 +3231,7 @@ void F14_WeaponsAnimation(byte Event) {
       WriteUpper2("              ");
       WriteLower2("              ");
       SwitchDisplay(0); // buffer 2
+      F14_GIOn(255,0,0);
       break;
     case 1:
       WriteUpper2("WEAPONSSYSTEMS");
@@ -3346,6 +3344,7 @@ void F14_WeaponsAnimation(byte Event) {
         KillTimer(display_step_timer);
         display_step_timer = 0;
         SwitchDisplay(1);
+        F14_GIOn(255,255,255);
       }
       break;
   }
@@ -3353,6 +3352,7 @@ void F14_WeaponsAnimation(byte Event) {
   if (Event > 33) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
+    F14_GIOn(255,255,255);
     F14_AnimationHandler(0,1); // let the handler know animation is done.
   }
   else if (Event < 28) {
