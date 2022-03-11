@@ -204,7 +204,7 @@ const char TxTLampColSelect[3][17] = {{"       COLUMN1  "},{"       COLUMN8  "},
 
 const struct SettingTopic APC_setList[15] = {
     {"DISPLAY TYPE    ",HandleDisplaySetting,&TxTDisplaySelect[0][0],0,8},
-    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,4},
+    {" ACTIVE GAME    ",HandleTextSetting,&TxTGameSelect[0][0],0,5},
     {" NO OF  BALLS   ",HandleNumSetting,0,1,5},
     {"  FREE  GAME    ",HandleBoolSetting,0,0,0},
     {"CONNECT TYPE    ",HandleTextSetting,&TxTConType[0][0],0,2},
