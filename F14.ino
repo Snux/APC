@@ -29,6 +29,7 @@ byte F14_LandingStatus[5][3]; // Track status of multiball progress towards figh
 byte F14_YagovKills[5];  // tracks how many times we killed Yagov
 byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
 byte F14_TomcatsCompleted[5]; // how many times has the player completed T-O-M-C-A-T
+byte F14_LocksClearing; // flag to indicate if locks are still being cleared out for multiball
 byte F14_LaunchBonus;
 byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
@@ -87,125 +88,6 @@ const struct SettingTopic F14_setList[13] = {{"OUTHOLESWITCH ",HandleNumSetting,
     {"  EXIT SETTNGS",ExitSettings,0,0,0},
     {"",NULL,0,0,0}};
 
-                                    // Duration..11111110...22222111...33322222...43333333...44444444...55555554...66666555
-                                    // Duration..65432109...43210987...21098765...09876543...87654321...65432109...43210987
-const struct LampPat F14_AttractPat1[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000},
-                                          {0,0,0,0,0,0,0,0}};
-
-const struct LampPat F14_AttractPat2[57] ={{250,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000,0b00000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000001},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000010},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000100},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00001000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00010000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00100000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b01000000},
-                                          {250,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b10000000},
-                                          {0,0,0,0,0,0,0,0}};
-
-const struct LampFlow F14_AttractFlow[3] = {{3,F14_AttractPat1},{10,F14_AttractPat2},{0,0}};
 
 struct GameDef F14_GameDefinition = {
     F14_setList,                                       // GameSettingsList
@@ -231,25 +113,49 @@ void F14_AttractMode() {                               // Attract Mode
   DispRow1 = DisplayUpper;
   DispRow2 = DisplayLower;
   digitalWrite(VolumePin,HIGH);                       // set volume to zero
-  //LampPattern = NoLamps;
   Switch_Pressed = F14_AttractModeSW;
   Switch_Released = DummyProcess;
   AppByte2 = 0;
-  //LampReturn = F14_AttractLampCycle;
-  //ActivateTimer(1000, 0, F14_AttractLampCycle);
+  ActivateTimer(1000, 0, F14_AttractLampCycle);
   F14_AttractDisplayCycle(1);
-  F14_LampShowPlayer(0,0);
   }
 
 void F14_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
-  
-  UNUSED(Event);
-  PatPointer = F14_AttractFlow[AppByte2].FlowPat;      // set the pointer to the current series
-  FlowRepeat = F14_AttractFlow[AppByte2].Repeat;       // set the repetitions
-  AppByte2++;                                         // increase counter
-  if (!F14_AttractFlow[AppByte2].Repeat) {             // repetitions of next series = 0?
-    AppByte2 = 0;}                                    // reset counter
-  ShowLampPatterns(1);}                               // call the player
+  static byte attract_lamp_timer = 0;
+  static byte current_show=0;
+
+  switch (Event) {
+    case 0:
+      if (attract_lamp_timer) {
+        F14_LampShowPlayer(3,255);
+      }
+      F14_LampShowPlayer(0,0);
+      current_show=0;
+      attract_lamp_timer = ActivateTimer(10000,1,F14_AttractLampCycle);
+      break;
+    case 1:
+      F14_LampShowPlayer(0,255);
+      F14_LampShowPlayer(1,0);
+      current_show = 1;
+      attract_lamp_timer = ActivateTimer(10000,2,F14_AttractLampCycle);
+      break;
+    case 2:
+      F14_LampShowPlayer(1,255);
+      F14_LampShowPlayer(3,0);
+      current_show = 3;
+      attract_lamp_timer = ActivateTimer(10000,0,F14_AttractLampCycle);
+      break;
+    case 255:
+      if (attract_lamp_timer) {
+        KillTimer(attract_lamp_timer);
+        attract_lamp_timer = 0;
+      }    
+      F14_LampShowPlayer(current_show,255);
+  }
+
+ 
+ }                               
+ 
 
 void F14_AttractDisplayCycle(byte Step) {
   static byte Timer0 = 0;
@@ -270,7 +176,7 @@ void F14_AttractDisplayCycle(byte Step) {
     ScrollLower2(100);
     return;
   case 1:                                             // attract mode title 'page'
-    WriteUpper2(" F-14   TOMCAT");
+    WriteUpper2(" SECONDSORTIE ");
     Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
     WriteLower2("                ");
     Timer2 = ActivateTimer(1000, 6, F14_AttractDisplayCycle);
@@ -289,8 +195,8 @@ void F14_AttractDisplayCycle(byte Step) {
     Step++;
     break;
   case 3:                                             // Show highscores
-    WriteUpper2("1>              ");
-    WriteLower2("2>              ");
+    WriteUpper2("1-              ");
+    WriteLower2("2-              ");
     for (i=0; i<3; i++) {
       *(DisplayUpper2+8+2*i) = DispPattern1[(HallOfFame.Initials[i]-32)*2];
       *(DisplayUpper2+8+2*i+1) = DispPattern1[(HallOfFame.Initials[i]-32)*2+1];
@@ -303,8 +209,8 @@ void F14_AttractDisplayCycle(byte Step) {
     Step++;
     break;
   case 4:
-    WriteUpper2("3>              ");
-    WriteLower2("4>              ");
+    WriteUpper2("3-              ");
+    WriteLower2("4-              ");
     for (i=0; i<3; i++) {
       *(DisplayUpper2+8+2*i) = DispPattern1[(HallOfFame.Initials[6+i]-32)*2];
       *(DisplayUpper2+8+2*i+1) = DispPattern1[(HallOfFame.Initials[6+i]-32)*2+1];
@@ -375,7 +281,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       //ShowLampPatterns(0);                            // stop lamp animations
       //LampShowXX(0);
       //LampShowYY(0);
-      F14_LampShowPlayer(0,255);
+      //F14_LampShowPlayer(0,255);
       F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
         analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
@@ -395,6 +301,8 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       BonusMultiplier = 1;
       InLock = 0;
       Multiballs = 1;
+      //F14_LampShowTwinkle(99);
+      F14_AttractLampCycle(255);
       for (i=1; i < 5; i++) {
         //LockedBalls[i] = 0;
         F14_YagovKills[i]=0;
@@ -409,14 +317,14 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
         for (byte j=0; j<12; j++) {
           F14_TomcatTargets[i][j]=0;}
         }
-      F14_LockOccupied[0] = 0;
+      F14_LockOccupied[0] = 0;  //no ball physically in any of the locks
       F14_LockOccupied[1] = 0;
       F14_LockOccupied[2] = 0;
-      
+      F14_LocksClearing = 0; 
       F14_LineOfDeathHandler(2);  // sort the kill lamps out
       F14_RescueTargetHandler(0); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
-      F14_NewBall(game_settings[F14set_InstalledBalls]); // release a new ball (3 expected balls in the trunk)
+      F14_NewBall(4); // release a new ball (4 expected balls in the trunk)
       F14_TomcatTargetLamps();
       F14_Bonus = 0;
       F14_Multiplier = 1;
@@ -487,6 +395,9 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_SpinnerHandler(2);
   F14_OrbitHandler(7);
   F14_LaunchBonusHandler(4);
+  PlayMusic(50, "1_02.snd");                      // play music track
+  QueueNextMusic("1_02.snd");  //loop it
+
   if (APC_settings[DisplayType] < 2) {                // credit display present?
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
@@ -839,12 +750,14 @@ void F14_GameMain(byte Event) {                        // game switch events
     ShowPoints(Player);
     ActivateSolenoid(0, 17);
     ActC_BankSol(3);
+    PlaySound(50, "0_BE.snd");
     break;
   case 66: // right slingshot
     Points[Player] += 10;
     ShowPoints(Player);
     ActivateSolenoid(0, 18);  // fire the sling
     ActC_BankSol(2); // flasher
+    PlaySound(50, "0_BE.snd");
     break;
   case 68: // pop bumper
     Points[Player] += 100;
@@ -997,12 +910,10 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
   // point the buffers correctly
   switch (Arg) {
     case 0: // start - point the LED and Lamp buffers to the F14Show versions
-      //apc_LEDStatus = LEDpattern;  // make a note of where the current LED buffer is
       LEDpattern = F14_ShowLEDs;
       LampPattern = F14_ShowLamps;
       break;
     case 255: // stop
-      //LEDpattern = apc_LEDStatus;  // reset the buffers
       LEDinit(); 
       LampPattern = LampColumns;
       break;
@@ -1019,6 +930,11 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
       if (Arg==0) {  // don't care about sending a stop as it stops by itself
         F14_LampShowCentrePulse(0);
       }
+      break;
+    case 3:
+      F14_LampShowTwinkle(Arg);
+      break;
+
   }
 }
 
@@ -1122,10 +1038,11 @@ if (Multiballs==1) {
     TurnOffLamp(40); 
     // Lock On should be lit if at least one lock is lit but not locked
     if (F14_LockStatus[Player][0]==1 || F14_LockStatus[Player][1]==1 || F14_LockStatus[Player][2]==1) {
-      AddBlinkLamp(48,100); 
+      TurnOnLamp(48);
+      
     }
     else {
-      RemoveBlinkLamp(48); TurnOffLamp(48);
+      TurnOffLamp(48);
     }
     
   }
@@ -1194,6 +1111,12 @@ void F14_LockHandler(byte Event) {
     Serial.println((byte) F14_LockOccupied[1]);
     Serial.print(" -> Lock 3 occupied = ");
     Serial.println((byte) F14_LockOccupied[2]);
+    Serial.print(" -> Landing 1 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][0]);
+    Serial.print(" -> Landing 2 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][1]);
+    Serial.print(" -> Landing 3 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][2]);
     Serial.print(" -> InLock = ");
     Serial.println((byte) InLock);
     Serial.print(" -> MultiBalls = ");
@@ -1296,6 +1219,7 @@ void F14_LockHandler(byte Event) {
       ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
       ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
       ActivateTimer(2000,2,F14_vUKHandler); // Then the vUK can clear the ball there
+      F14_LocksClearing=1; // make a note that we are clearing locks
       for (byte i=0; i< 3; i++ ) { // reset status of locks
         F14_LockStatus[Player][i]=0;
         F14_LockOccupied[i]=0;
@@ -1420,6 +1344,12 @@ void F14_LockHandler(byte Event) {
     Serial.println((byte) F14_LockOccupied[1]);
     Serial.print(" -> Lock 3 occupied = ");
     Serial.println((byte) F14_LockOccupied[2]);
+    Serial.print(" -> Landing 1 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][0]);
+    Serial.print(" -> Landing 2 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][1]);
+    Serial.print(" -> Landing 3 status = ");
+    Serial.println((byte) F14_LandingStatus[Player][2]);
     Serial.print(" -> InLock = ");
     Serial.println((byte) InLock);
     Serial.print(" -> MultiBalls = ");
@@ -1448,35 +1378,42 @@ byte landing_count=0;
 
   }
 
-  // Set the status on this one
-  F14_LandingStatus[Player][Lock]=1;
+  // the first ball into a landing is actually still the multiball starting up, it's the ball that was in the vuk
+  // so we don't score a landing for the first one.
+  if (!F14_LocksClearing) { 
+    // Set the status on this one
+    F14_LandingStatus[Player][Lock]=1;
 
-  // Work out how many landed  
-  for (byte i=0; i<3; i++) {
-    if (F14_LandingStatus[Player][i]==1) {
-      landing_count++;
+    // Work out how many landed  
+    for (byte i=0; i<3; i++) {
+      if (F14_LandingStatus[Player][i]==1) {
+        landing_count++;
+      }
     }
-  }
 
-  // Work out the bonus
-  if (landing_count==1) {
-    landing_bonus = 150000;
-  }
-  else if (landing_count==2) {
-    landing_bonus = 250000;
+    // Work out the bonus
+    if (landing_count==1) {
+      landing_bonus = 150000;
+    }
+    else if (landing_count==2) {
+      landing_bonus = 250000;
+    }
+    else {
+      landing_bonus = 703850;
+      for (byte i=0; i<3; i++) {
+        F14_LandingStatus[Player][i]=0;
+      }
+    }
+
+    Points[Player]+=landing_bonus;
+
+    // Sort out the lamps
+    
+    F14_LockLampHandler();
   }
   else {
-    landing_bonus = 703850;
-    for (byte i=0; i<3; i++) {
-      F14_LandingStatus[Player][i]=0;
-    }
+    F14_LocksClearing = 0;  // locks are now cleared.
   }
-
-  Points[Player]+=landing_bonus;
-
-  // Sort out the lamps
-  
-  F14_LockLampHandler();
 
   // Kick the ball back out
   switch (Lock) {
@@ -1856,6 +1793,7 @@ void F14_SpinnerHandler(byte Event) {
         Points[Player] += 10;
       }
       ShowPoints(Player);
+      PlaySound(49,"0_C1.snd");
       break;
     case 1:
       spinner_2k_lit = 1;
@@ -2018,7 +1956,7 @@ void F14_1to6Handler(byte Event) {
         direction = direction * -1;
       }
       TurnOnLamp(F14_1to6LampNumbers[current_lamp]);
-      one_to_six_timer = ActivateTimer(500,3,F14_1to6Handler);
+      one_to_six_timer = ActivateTimer(250,3,F14_1to6Handler);
       break;
     // switch hit
     case 41:
@@ -2226,13 +2164,21 @@ void F14_RescueTargetHandler(byte Event){
     case 2:
       if (lit_target==0){
         F14_RescueKickerHandler(0); // left target hit and is lit, call the kicker handler
+        PlaySound(50, "0_C1.snd");
+      }
+      else {
+        PlaySound(50, "0_C0.snd");
       }
       break;
     case 3:
       if (lit_target==1){
         F14_RescueKickerHandler(0); // right target hit and is lit, call the kicker handler      
+        PlaySound(50, "0_C1.snd");
       }
-      break;
+      else {
+        PlaySound(50, "0_C0.snd");
+      }
+break;
     case 4:  // Light left target
       lit_target = 0;
       TurnOnLamp(5);
@@ -2268,6 +2214,12 @@ void F14_RescueKickerHandler(byte Event){
       switch (F14_RescueKickerStatus){
         case 1:
           ActivateSolenoid(0,13);  // Fire the kicker
+          if (random(2)==0) {  // "That was close" or "Pull Up"
+            PlaySound(51, "0_B7.snd");
+          }
+          else {
+            PlaySound(51, "0_BB.snd");
+          }
           F14_RescueKickerStatus = 2;
           TurnOffLamp(8);  // Turn the lamp off
           AddBlinkLamp(8,100);  // then blink it
@@ -2515,14 +2467,15 @@ void F14_BallEnd(byte Event) {
       Multiballs = 1;
       ReleaseSolenoid(16); // switch off the beacons
       F14_LockLampHandler(); // tidy up the lock lamps
+      F14_LocksClearing=0; // if we were clearing locks, we're not now
       WriteLower("                ");
-      if (BallsInTrunk == game_settings[F14set_InstalledBalls]) { // all balls in trunk?
+      if (BallsInTrunk == 4) { // all balls in trunk?
         ActivateTimer(1000, 0, F14_BallEnd);}
       else {
         BlockOuthole = false;}                        // remove outhole block
       break;
     case 1:                                           // end of ball
-      if (BallsInTrunk + InLock != game_settings[F14set_InstalledBalls]) {
+      if (BallsInTrunk + InLock != 4) {
         WriteUpper(" COUNT  ERROR   ");
         InLock = 0;
 //        for (i=0; i<3; i++) {                       // check how many balls are on the ball ramp
@@ -2533,6 +2486,7 @@ void F14_BallEnd(byte Event) {
         //LockedBalls[Player] = 0;
         BlinkScore(0);                                // stop score blinking
         F14_AwardBonus(0);
+        StopPlayingMusic();
         //F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
       }}}}
 
@@ -3039,10 +2993,10 @@ void F14_LockedBallAnimation(byte Event) {
   static byte display_step_timer = 0;
   byte balls_locked = 0;
 
- if (APC_settings[DebugMode]){
+ /*if (APC_settings[DebugMode]){
     Serial.print("F14_LockedBallAnimation event ");            // print address reference table
     Serial.println((byte)Event);
-  }
+  }*/
 
 
   for (byte i=0; i<3; i++) {
@@ -3103,10 +3057,10 @@ void F14_LockIsLitAnimation(byte Event) {
 
 static byte display_step_timer = 0;
 
- if (APC_settings[DebugMode]){
+ /*if (APC_settings[DebugMode]){
     Serial.print("F14_LockIsLitAnimation event ");            // print address reference table
     Serial.println((byte)Event);
-  }
+  }*/
 
 
 switch (Event) {
@@ -3216,10 +3170,10 @@ void F14_WeaponsAnimation(byte Event) {
   static byte display_step_timer = 0;
   byte next_event;
 
-  if (APC_settings[DebugMode]){
+  /*if (APC_settings[DebugMode]){
     Serial.print("F14_WeaponsAnimation event ");            // print address reference table
     Serial.println((byte)Event);
-  }
+  }*/
 
   switch (Event) {
     case 0:
@@ -3231,7 +3185,7 @@ void F14_WeaponsAnimation(byte Event) {
       WriteUpper2("              ");
       WriteLower2("              ");
       SwitchDisplay(0); // buffer 2
-      F14_GIOn(255,0,0);
+      //F14_GIOn(255,0,0);
       break;
     case 1:
       WriteUpper2("WEAPONSSYSTEMS");
@@ -3344,7 +3298,7 @@ void F14_WeaponsAnimation(byte Event) {
         KillTimer(display_step_timer);
         display_step_timer = 0;
         SwitchDisplay(1);
-        F14_GIOn(255,255,255);
+        //F14_GIOn(255,255,255);
       }
       break;
   }
@@ -3352,7 +3306,7 @@ void F14_WeaponsAnimation(byte Event) {
   if (Event > 33) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_GIOn(255,255,255);
+    //F14_GIOn(255,255,255);
     F14_AnimationHandler(0,1); // let the handler know animation is done.
   }
   else if (Event < 28) {
@@ -3366,10 +3320,10 @@ void F14_WeaponsAnimation(byte Event) {
 // multiball intro
 void F14_MultiBallAnimation(byte Event) {
   static byte display_step_timer = 0;
- if (APC_settings[DebugMode]){
+  /*if (APC_settings[DebugMode]){
     Serial.print("F14_MultiBallAnimation event ");            // print address reference table
     Serial.println((byte)Event);
-  }
+  }*/
 
   switch (Event) {
     case 0:
@@ -3454,10 +3408,10 @@ void F14_MultiBallAnimation(byte Event) {
 void F14_LaunchBonusAnimation(byte Event){
 static byte display_step_timer = 0;
 
-  if (APC_settings[DebugMode]){
+  /*if (APC_settings[DebugMode]){
     Serial.print("F14_LaunchBonusAnimation event ");            // print address reference table
     Serial.println((byte)Event);
-  }
+  }*/
 
   switch (Event) {
     case 0:
@@ -3831,6 +3785,42 @@ case 30:
   }
 }
 
+
+void F14_LampShowTwinkle(byte Step) {
+  static byte twinkle_timer = 0;
+  switch (Step) {
+    case 0:
+      for (byte i=1; i<64; i+=2) {
+        F14Show_TurnOnLamp(i);
+        F14Show_TurnOffLamp(i+1);
+      }
+      for (byte i=102; i<117; i+=2) {
+        F14Show_TurnOnLamp(i);
+        F14Show_TurnOffLamp(i+1);
+      }
+
+      twinkle_timer = ActivateTimer(100,1,F14_LampShowTwinkle);
+      break;
+    case 1:
+      for (byte i=1; i<64; i+=2) {
+        F14Show_TurnOffLamp(i);
+        F14Show_TurnOnLamp(i+1);
+      }
+      for (byte i=102; i<117; i+=2) {
+        F14Show_TurnOffLamp(i);
+        F14Show_TurnOnLamp(i+1);
+      }
+
+      twinkle_timer = ActivateTimer(100,0,F14_LampShowTwinkle);
+      break;
+    case 255: //stop
+      if (twinkle_timer) {
+        KillTimer(twinkle_timer);
+        twinkle_timer = 0;
+      }
+      break;
+  }
+}
 
 void F14_LampShowUpDown (byte Step) {
 static byte step_timer=0;
