@@ -14,6 +14,8 @@
 //   lighting lamps, scoring etc etc.
 //   This keeps the main game switch handler simple.
 
+#include "F14_Constants.h"
+
 byte F14_TomcatTargets[5][12]; // track status of the 12 Tomcat targets for each player - 0 shot not made, 1 shot made
 const byte F14TomcatTargetLampNumbers[12] = {33,34,35,36,37,38,49,50,51,52,53,54};  // The lamp for the corresponding target
 const byte F14_1to6LampNumbers[6] = {116,115,114,113,110,112};
@@ -31,7 +33,6 @@ byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
 byte F14_TomcatsCompleted[5]; // how many times has the player completed T-O-M-C-A-T
 byte F14_LocksClearing; // flag to indicate if locks are still being cleared out for multiball
 byte F14_LaunchBonus;
-byte F14_RescueKickerStatus; // status of outlane rescue 0 unlit, 1 lit, 2 grace period
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
@@ -46,8 +47,9 @@ const byte *apc_LEDStatus;
 
 // All handlers in the game should generally have these events defined
 const byte LAMP_UPDATE=200;   // Update the lamps (between players, for example)
-const byte QUIT_HANDLER=201;  // The handler should shut down any timers, switch off lamps etc
+const byte HANDLER_LAMP_RESET=254;  // 
 bool lamp_show_running=false; // If we are running a lampshow of some kind, this will be set
+
 
 
 
@@ -120,6 +122,15 @@ void F14_AttractMode() {                               // Attract Mode
   F14_AttractDisplayCycle(1);
   }
 
+
+
+//     ___________   ___  __  __               __  __                   _____         __   
+//    / __<  / / /  / _ |/ /_/ /________ _____/ /_/ /  ___ ___ _  ___  / ___/_ ______/ /__ 
+//   / _/ / /_  _/ / __ / __/ __/ __/ _ `/ __/ __/ /__/ _ `/  ' \/ _ \/ /__/ // / __/ / -_)
+//  /_/  /_/ /_/__/_/ |_\__/\__/_/  \_,_/\__/\__/____/\_,_/_/_/_/ .__/\___/\_, /\__/_/\__/ 
+//            /___/                                            /_/        /___/            
+//
+// Loops through lamp shows during attract mode.  Call with 0 to start, 255 to end
 void F14_AttractLampCycle(byte Event) {                // play multiple lamp pattern series
   static byte attract_lamp_timer = 0;
   static byte current_show=0;
@@ -127,30 +138,30 @@ void F14_AttractLampCycle(byte Event) {                // play multiple lamp pat
   switch (Event) {
     case 0:
       if (attract_lamp_timer) {
-        F14_LampShowPlayer(3,255);
+        F14_LampShowPlayer(LAMP_SHOW_TWINKLE,QUIT_SHOW);
       }
-      F14_LampShowPlayer(0,0);
+      F14_LampShowPlayer(LAMP_SHOW_ROTATE,START_SHOW);
       current_show=0;
       attract_lamp_timer = ActivateTimer(10000,1,F14_AttractLampCycle);
       break;
     case 1:
-      F14_LampShowPlayer(0,255);
-      F14_LampShowPlayer(1,0);
+      F14_LampShowPlayer(LAMP_SHOW_ROTATE,QUIT_SHOW);
+      F14_LampShowPlayer(LAMP_SHOW_UPDOWN,START_SHOW);
       current_show = 1;
       attract_lamp_timer = ActivateTimer(10000,2,F14_AttractLampCycle);
       break;
     case 2:
-      F14_LampShowPlayer(1,255);
-      F14_LampShowPlayer(3,0);
+      F14_LampShowPlayer(LAMP_SHOW_UPDOWN,QUIT_SHOW);
+      F14_LampShowPlayer(LAMP_SHOW_TWINKLE,START_SHOW);
       current_show = 3;
       attract_lamp_timer = ActivateTimer(10000,0,F14_AttractLampCycle);
       break;
-    case 255:
+    case QUIT_HANDLER:
       if (attract_lamp_timer) {
         KillTimer(attract_lamp_timer);
         attract_lamp_timer = 0;
       }    
-      F14_LampShowPlayer(current_show,255);
+      F14_LampShowPlayer(current_show,QUIT_SHOW);
   }
 
  
@@ -177,9 +188,9 @@ void F14_AttractDisplayCycle(byte Step) {
     return;
   case 1:                                             // attract mode title 'page'
     WriteUpper2(" SECONDSORTIE ");
-    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
-    WriteLower2("                ");
-    Timer2 = ActivateTimer(1000, 6, F14_AttractDisplayCycle);
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    WriteLower2(" F-14    F-14 ");
+    Timer2 = ActivateTimer(1000, 100, F14_AttractDisplayCycle);
     if (NoPlayers) {                                  // if there were no games before skip the next step
       Step++;}
     else {
@@ -190,11 +201,18 @@ void F14_AttractDisplayCycle(byte Step) {
     WriteLower2("                ");
     for (i=1; i<=NoPlayers; i++) {                    // display the points of all active players
       ShowNumber(8*i-1, Points[i]);}
-    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
-    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 100, F14_AttractDisplayCycle);
     Step++;
     break;
-  case 3:                                             // Show highscores
+  case 3:                                             // attract mode title 'page'
+    WriteUpper2(" HIGH  SCORES ");
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    WriteLower2("                ");
+    Timer2 = ActivateTimer(1000, 100, F14_AttractDisplayCycle);
+    Step++;
+    break;
+  case 4:                                             // Show highscores
     WriteUpper2("1-              ");
     WriteLower2("2-              ");
     for (i=0; i<3; i++) {
@@ -204,11 +222,11 @@ void F14_AttractDisplayCycle(byte Step) {
       *(DisplayLower2+8+2*i+1) = DispPattern2[(HallOfFame.Initials[3+i]-32)*2+1];}
     ShowNumber(15, HallOfFame.Scores[0]);
     ShowNumber(31, HallOfFame.Scores[1]);
-    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
-    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 100, F14_AttractDisplayCycle);
     Step++;
     break;
-  case 4:
+  case 5:
     WriteUpper2("3-              ");
     WriteLower2("4-              ");
     for (i=0; i<3; i++) {
@@ -218,15 +236,23 @@ void F14_AttractDisplayCycle(byte Step) {
       *(DisplayLower2+8+2*i+1) = DispPattern2[(HallOfFame.Initials[9+i]-32)*2+1];}
     ShowNumber(15, HallOfFame.Scores[2]);
     ShowNumber(31, HallOfFame.Scores[3]);
-    Timer1 = ActivateTimer(50, 5, F14_AttractDisplayCycle);
-    Timer2 = ActivateTimer(900, 6, F14_AttractDisplayCycle);
-    Step = 1;
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    Timer2 = ActivateTimer(900, 100, F14_AttractDisplayCycle);
+    Step++;
     break;
-  case 5:                                             // scrolling routine called here to keep track of the timer
+  case 6:                                             // attract mode title 'page'
+    WriteUpper2("ARDUINOPINBALL");
+    Timer1 = ActivateTimer(50, 99, F14_AttractDisplayCycle);
+    WriteLower2("CONTROL  APC  ");
+    Timer2 = ActivateTimer(1000, 100, F14_AttractDisplayCycle);
+    Step=1;
+    break;
+  
+  case 99:                                             // scrolling routine called here to keep track of the timer
     Timer1 = 0;
     ScrollUpper(0);
     return;
-  case 6:
+  case 100:
     Timer2 = 0;
     ScrollLower2(0);
     return;}
@@ -259,7 +285,6 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
 
   case 72:                                            // Service Mode
     BlinkScore(0);                                    // stop score blinking
-    //ShowLampPatterns(0);                              // stop lamp animations
     KillAllTimers();
     BallWatchdogTimer = 0;
     CheckReleaseTimer = 0;
@@ -278,10 +303,6 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
   case 3:                                             // start game
     if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
-      //ShowLampPatterns(0);                            // stop lamp animations
-      //LampShowXX(0);
-      //LampShowYY(0);
-      //F14_LampShowPlayer(0,255);
       F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
         analogWrite(VolumePin,255-APC_settings[Volume]);} // adjust PWM to volume setting
@@ -301,7 +322,6 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       BonusMultiplier = 1;
       InLock = 0;
       Multiballs = 1;
-      //F14_LampShowTwinkle(99);
       F14_AttractLampCycle(255);
       for (i=1; i < 5; i++) {
         //LockedBalls[i] = 0;
@@ -322,7 +342,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[2] = 0;
       F14_LocksClearing = 0; 
       F14_LineOfDeathHandler(2);  // sort the kill lamps out
-      F14_RescueTargetHandler(0); // start the rescue target flip/flop
+      F14_RescueTargetHandler(START_HANDLER); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(4); // release a new ball (4 expected balls in the trunk)
       F14_TomcatTargetLamps();
@@ -379,20 +399,18 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   }
 
   F14_ShowAllPoints(0);
-  F14_RescueKickerHandler(0);                         // Light the kickback at ball start
+  F14_RescueKickerHandler(START_HANDLER);                         // Light the kickback at ball start
   F14_LockHandler(7); // reset locks back to lit instead of locked if no longer contain a ball.
   F14_LockLampHandler();                                 // Lock handler reset
   F14_Multiplier = 1;
   F14_Bonus = 0;
   ExBalls = 0;
   F14_BonusHandler(2);                                // Reset bonus lamps
-  //LampShowXX(0);
-  //F14_TomcatTargetLamps();
   if (F14_Kills[Player] == 7) {  // reset kills if we completed them all on previous ball
     F14_Kills[Player] = 0;
   }
   F14_LineOfDeathHandler(2);
-  F14_SpinnerHandler(2);
+  F14_SpinnerHandler(SPINNER_RESET);
   F14_OrbitHandler(7);
   F14_LaunchBonusHandler(4);
   PlayMusic(50, "1_02.snd");                      // play music track
@@ -509,6 +527,11 @@ void F14_SearchBall(byte Counter) {                    // ball watchdog timer ha
 
 
 
+//     ___________   ___       __________    _                  ______       __  __        __    _______           __  
+//    / __<  / / /  / _ )___ _/ / / __/ /__ (_)__  ___  ___ ___/ / __ \__ __/ /_/ /  ___  / /__ / ___/ /  ___ ____/ /__
+//   / _/ / /_  _/ / _  / _ `/ / /\ \/  '_// / _ \/ _ \/ -_) _  / /_/ / // / __/ _ \/ _ \/ / -_) /__/ _ \/ -_) __/  '_/
+//  /_/  /_/ /_/__/____/\_,_/_/_/___/_/\_\/_/ .__/ .__/\__/\_,_/\____/\_,_/\__/_//_/\___/_/\__/\___/_//_/\__/\__/_/\_\ 
+//            /___/                        /_/  /_/                                                                    
 // Called if a trough switch activates during game play.  This can happen if 
 // a ball skips the outhole switch and jumps right to the trough.
 void F14_BallSkippedOutholeCheck(byte Event) {
@@ -543,8 +566,9 @@ void F14_BallSkippedOutholeCheck(byte Event) {
 // the ball number too.
 void F14_ShowAllPoints(byte Dummy) {
   
-  ShowAllPoints(0); // standard display
+  ShowAllPoints(0); // do the standard display
 
+  // Then display the ball count.  Need to revisit when 4 players.
   if (NoPlayers < 4) {
     switch (Ball) {
       case 1:
@@ -591,12 +615,13 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
     WriteLower("                ");
     F14_ShowAllPoints(0);
     BlinkScore(1);
-    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}
+    ActA_BankSol(2);  // kick ball to shooter lane
+    } 
   byte c = F14_CountBallsInTrunk();
   if (c == Balls) {                                   // expected number of balls in trunk
     WriteUpper("  BALL MISSING  ");
-    if (QuerySwitch(game_settings[F14set_OutholeSwitch])) { // outhole switch still active?
-      ActA_BankSol(game_settings[F14set_OutholeKicker]);}}  // shove the ball into the trunk
+    if (QuerySwitch(10)) { // outhole switch still active?
+      ActA_BankSol(1);}}  // shove the ball into the trunk
   else {                                              //
     if (c == 5) {                                     // balls not settled
       WriteLower(" TRUNK  ERROR   ");
@@ -607,9 +632,19 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
         WriteLower("                ");
         F14_ShowAllPoints(0);
         BlinkScore(1);
-        ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);}}} // release again
+        ActA_BankSol(2);}}} // release again
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
+
+//     ___________  _____               __  ___     _    
+//    / __<  / / / / ___/__ ___ _  ___ /  |/  /__ _(_)__ 
+//   / _/ / /_  _// (_ / _ `/  ' \/ -_) /|_/ / _ `/ / _ \
+//  /_/  /_/ /_/__\___/\_,_/_/_/_/\__/_/  /_/\_,_/_/_//_/
+//            /___/                                      
+//
+// This is kind of the "main loop" of the game.  Switch events get handled here.
+// Generally tried to keep this function clean and have it call to handlers that
+// look after the various functions that are going on.
 void F14_GameMain(byte Event) {                        // game switch events
   static unsigned long prev_switch_hit[75];
   
@@ -632,6 +667,9 @@ void F14_GameMain(byte Event) {                        // game switch events
   case 1:                                             // plumb bolt tilt
   case 2:                                             // ball roll tilt
   case 7:                                             // slam tilt
+  case 9:                                            // playfield tilt
+    WriteUpper(" TILT  WARNING  ");
+    ActivateTimer(3000, 0, F14_ShowAllPoints);
     break;
   case 8:
     Serial.println("Game Info");
@@ -645,10 +683,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     Serial.println((byte)Multiballs);
 
     break;
-  case 9:                                            // playfield tilt
-    WriteUpper(" TILT  WARNING  ");
-    ActivateTimer(3000, 0, F14_ShowAllPoints);
-    break;
+
   case 3:                                             // credit button
     F14_AddPlayer();
     break;
@@ -659,24 +694,24 @@ void F14_GameMain(byte Event) {                        // game switch events
     F14_BallSkippedOutholeCheck(0);
     break;
   case 20:  // ramp entry
-    F14_DivertorHandler(0);
+    F14_DivertorHandler(0);  // let the divertor know a ball is coming
     break;
   case 21:                                            //right eject
   case 22:                                            //left
   case 23:                                            //centre
-    F14_LockHandler(Event);
+    F14_LockHandler(Event);  // lock switch activated
     break;  
   case 24:    //vuk
    
-    F14_vUKHandler(0);
+    F14_vUKHandler(VUK_BALL_CAPTURED);
     break;
   case 25:  // left rescue target
     F14_CentreKillHandler(1); // will award kill if it was lit
-    F14_RescueTargetHandler(2);
+    F14_RescueTargetHandler(RESCUE_TARGET_LEFT_HIT);
     break;
   case 26:
     F14_CentreKillHandler(1);
-    F14_RescueTargetHandler(3);
+    F14_RescueTargetHandler(RESCUE_TARGET_RIGHT_HIT);
     break;
   case 30:
   case 31:
@@ -704,6 +739,9 @@ void F14_GameMain(byte Event) {                        // game switch events
   
   case 47:
     F14_OrbitHandler(0);  //right orbit
+    break;
+  case 48: // Spinner
+    F14_SpinnerHandler(SPINNER_HIT);
     break;
   // Upper TOMCAT targets
   case 49:
@@ -739,23 +777,23 @@ void F14_GameMain(byte Event) {                        // game switch events
     
     break;
   case 61: // left drain
-    F14_RescueKickerHandler(1);
+    F14_RescueKickerHandler(RESCUE_OUTLANE_SWITCH_HIT);
     F14_BonusHandler(0); // increment end of ball bonus
     break;
   case 62: // right drain
     F14_BonusHandler(0); // increment end of ball bonus
     break;
   case 65: // left slingshot
-    Points[Player] += 10;
-    ShowPoints(Player);
-    ActivateSolenoid(0, 17);
-    ActC_BankSol(3);
+    ActivateSolenoid(0, 17); // fire kicker
+    Points[Player] += 10;  //give some points
+    ShowPoints(Player);  // display them
+    ActC_BankSol(3); // flasher
     PlaySound(50, "0_BE.snd");
     break;
   case 66: // right slingshot
+    ActivateSolenoid(0, 18);  // fire the sling
     Points[Player] += 10;
     ShowPoints(Player);
-    ActivateSolenoid(0, 18);  // fire the sling
     ActC_BankSol(2); // flasher
     PlaySound(50, "0_BE.snd");
     break;
@@ -861,6 +899,11 @@ void F14_HotStreakHandler(byte Event) {
 
 
 
+//     ___________ ______                    __ ______                  __  __                     
+//    / __<  / / //_  __/__  __ _  _______ _/ //_  __/__ ________ ____ / /_/ /  ___ ___ _  ___  ___
+//   / _/ / /_  _/ / / / _ \/  ' \/ __/ _ `/ __// / / _ `/ __/ _ `/ -_) __/ /__/ _ `/  ' \/ _ \(_-<
+//  /_/  /_/ /_/__/_/  \___/_/_/_/\__/\_,_/\__//_/  \_,_/_/  \_, /\__/\__/____/\_,_/_/_/_/ .__/___/
+//            /___/                                         /___/                       /_/        
 // Update the T-O-M-C-A-T lamps based on the status of the shots
 void F14_TomcatTargetLamps() {
   
@@ -876,6 +919,11 @@ void F14_TomcatTargetLamps() {
   }
 }
 
+// When playing a lamp show, we use alternative buffers for both the lamps and LEDS
+// this means that regular lamp commands (on/off/blink etc) can still be happening
+// on the original buffers so can be switched back to afterwards
+// We therefore have special versions of on/off which address this second buffer.
+// No blink option for the second buffer as not needed and would get messy
 void F14Show_TurnOnLamp(byte Lamp) {
   if (Lamp < 65) {                                    // is it a matrix lamp?
     Lamp--;
@@ -890,9 +938,8 @@ void F14Show_TurnOffLamp(byte Lamp) {
   else {                                              // lamp numbers > 64 are additional LEDs
     F14_ShowLEDhandling(4, Lamp - 65);}}
 
-byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handler
+byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handler 2nd buffer
 
-  
   switch(Command) {
   case 3:                                             // turn on LED
     F14_ShowLEDs[Arg / 8] |= 1<<(Arg % 8);
@@ -905,6 +952,18 @@ byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handle
 }
   return(0);}
 
+
+
+//     ___________   __                   ______              ___  __                 
+//    / __<  / / /  / /  ___ ___ _  ___  / __/ /  ___ _    __/ _ \/ /__ ___ _____ ____
+//   / _/ / /_  _/ / /__/ _ `/  ' \/ _ \_\ \/ _ \/ _ \ |/|/ / ___/ / _ `/ // / -_) __/
+//  /_/  /_/ /_/__/____/\_,_/_/_/_/ .__/___/_//_/\___/__,__/_/  /_/\_,_/\_, /\__/_/   
+//            /___/              /_/                                   /___/          
+//
+// This routine takes care of flipping over to the second lamp/LED buffers, calling the
+// required lampshow and then flipping back afterwards
+// ShowNumber - which of the shows
+// Arg - 0 to start the show, 255 to stop it
 void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
 
   // point the buffers correctly
@@ -1218,7 +1277,7 @@ void F14_LockHandler(byte Event) {
       ActivateSolenoid(0,10);  // Clear lock 1
       ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
       ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
-      ActivateTimer(2000,2,F14_vUKHandler); // Then the vUK can clear the ball there
+      ActivateTimer(2000,VUK_EJECT,F14_vUKHandler); // Then the vUK can clear the ball there
       F14_LocksClearing=1; // make a note that we are clearing locks
       for (byte i=0; i< 3; i++ ) { // reset status of locks
         F14_LockStatus[Player][i]=0;
@@ -1703,7 +1762,8 @@ void F14_LaunchBonusHandler(byte Event) {
         strobe_loop = 10;  // this will shut down the timer
       }
       else { // no bonus, just call back to vuk handler
-        F14_vUKHandler(3);
+        //ActivateTimer(10,VUK_CALL_FROM_LAUNCH_BONUS,F14_vUKHandler);
+        F14_vUKHandler(VUK_CALL_FROM_LAUNCH_BONUS);
       }
       break;
     case 2:
@@ -1777,15 +1837,23 @@ void F14_LaunchBonusHandler(byte Event) {
   }
 }
 
+
+//     ___________   ____     _                   __ __             ____       
+//    / __<  / / /  / __/__  (_)__  ___  ___ ____/ // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ _\ \/ _ \/ / _ \/ _ \/ -_) __/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/___/ .__/_/_//_/_//_/\__/_/ /_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/  /_/                                                       
 // Small handler for the spinner
 // Event 0 = spinner hit
 // Event 1 = light spinner 2k
 // Event 2 = reset spinner 2k
+
+
 void F14_SpinnerHandler(byte Event) {
   static byte spinner_2k_lit=0;
 
   switch (Event) {
-    case 0:
+    case SPINNER_HIT:
       if (spinner_2k_lit) {
         Points[Player] += 2000;
       }
@@ -1795,11 +1863,11 @@ void F14_SpinnerHandler(byte Event) {
       ShowPoints(Player);
       PlaySound(49,"0_C1.snd");
       break;
-    case 1:
+    case SPINNER_LIGHT:
       spinner_2k_lit = 1;
       TurnOnLamp(56);
       break;
-    case 2:
+    case SPINNER_RESET:
       spinner_2k_lit = 0;
       TurnOffLamp(56);
       break;
@@ -1967,7 +2035,7 @@ void F14_1to6Handler(byte Event) {
     case 46:
       if (current_lamp == F14_1to6SwitchNumbers[Event-41]) {
         Points[Player] += 10000;
-        F14_SpinnerHandler(1); // increase spinner score to 2k
+        F14_SpinnerHandler(SPINNER_LIGHT); // increase spinner score to 2k
         F14_OrbitHandler(4);  // light left and right orbit bonusx
       }
       else {
@@ -2140,20 +2208,25 @@ void F14_OrbitHandler(byte Event) {
   }
 }
 
-// Event 0 = start the flip/flop between rescue targets
-// Event 1 = stop the flip/flop
-// Event 2 = left target hit
-// Event 3 = right target hit
-// Event 4 = light left target
-// Event 5 = light right target
+
+//     ___________   ___                     ______                  __  __ __             ____       
+//    / __<  / / /  / _ \___ ___ ______ ____/_  __/__ ________ ____ / /_/ // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / , _/ -_|_-</ __/ // / -_) / / _ `/ __/ _ `/ -_) __/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/_/|_|\__/___/\__/\_,_/\__/_/  \_,_/_/  \_, /\__/\__/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                      /___/                                        
+
+// regular START_HANDLER 0 = start the flip/flop between rescue targets
+// regular QUIT_HANLDER  255 = stop the flip/flop
+
+
 void F14_RescueTargetHandler(byte Event){
   static byte lit_target = 0;  // 0 is left target, 1 is right target
   static byte rescue_target_timer = 0;
   switch(Event) {
-    case 0:
-      F14_RescueTargetHandler(4);  // just call the start for the left lamp
+    case START_HANDLER:
+      F14_RescueTargetHandler(RESCUE_TARGET_LEFT_LIGHT);  // just call the start for the left lamp
       break;
-    case 1:  // kill the timer and switch the lamps off
+    case QUIT_HANDLER:  // kill the timer and switch the lamps off
       if (rescue_target_timer) {
           KillTimer(rescue_target_timer);
           rescue_target_timer = 0;
@@ -2161,48 +2234,57 @@ void F14_RescueTargetHandler(byte Event){
         TurnOffLamp(5);
         TurnOffLamp(7);
       break;
-    case 2:
+    case RESCUE_TARGET_LEFT_HIT:
       if (lit_target==0){
-        F14_RescueKickerHandler(0); // left target hit and is lit, call the kicker handler
+        F14_RescueKickerHandler(START_HANDLER); // left target hit and is lit, call the kicker handler
         PlaySound(50, "0_C1.snd");
       }
       else {
         PlaySound(50, "0_C0.snd");
       }
       break;
-    case 3:
+    case RESCUE_TARGET_RIGHT_HIT:
       if (lit_target==1){
-        F14_RescueKickerHandler(0); // right target hit and is lit, call the kicker handler      
+        F14_RescueKickerHandler(START_HANDLER); // right target hit and is lit, call the kicker handler      
         PlaySound(50, "0_C1.snd");
       }
       else {
         PlaySound(50, "0_C0.snd");
       }
-break;
-    case 4:  // Light left target
+      break;
+    case RESCUE_TARGET_LEFT_LIGHT:  // Light left target
       lit_target = 0;
       TurnOnLamp(5);
       TurnOffLamp(7);
-      rescue_target_timer = ActivateTimer(1000, 5, F14_RescueTargetHandler);  // move to right in 1 sec
+      rescue_target_timer = ActivateTimer(1000, RESCUE_TARGET_RIGHT_LIGHT, F14_RescueTargetHandler);  // move to right in 1 sec
       break;
-    case 5:  // Light right target
+    case RESCUE_TARGET_RIGHT_LIGHT:  // Light right target
       lit_target = 1;
       TurnOnLamp(7);
       TurnOffLamp(5);
-      rescue_target_timer = ActivateTimer(1000, 4, F14_RescueTargetHandler);  // move to left in 1 sec
+      rescue_target_timer = ActivateTimer(1000, RESCUE_TARGET_LEFT_LIGHT, F14_RescueTargetHandler);  // move to left in 1 sec
       break;
 
   }
 }
 
+
+//     ___________   ___                       __ ___     __           __ __             ____       
+//    / __<  / / /  / _ \___ ___ ______ _____ / //_(_)___/ /_____ ____/ // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / , _/ -_|_-</ __/ // / -_) ,< / / __/  '_/ -_) __/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/_/|_|\__/___/\__/\_,_/\__/_/|_/_/\__/_/\_\\__/_/ /_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                                                 
+
 // Handler for the rescue kickback (left outlane)
-// Event 0 - light the kickback (called from F14_RescueTargetHandler) and on ball start
+// regular START_HANDLER 0 - light the kickback (called from F14_RescueTargetHandler) and on ball start
+
 // Event 1 - ball hit outlane switch
 // Event 2 - grace period expires
 void F14_RescueKickerHandler(byte Event){
   static byte grace_timer=0;
+  static byte F14_RescueKickerStatus = 0;  // 0 not lit, 1 lit, 2 grace period
   switch (Event){
-    case 0:  // light kickback
+    case START_HANDLER:  // light kickback
       if (grace_timer) {  // kill the grace timer if we have one
         KillTimer(grace_timer);
         grace_timer = 0;
@@ -2210,7 +2292,7 @@ void F14_RescueKickerHandler(byte Event){
       F14_RescueKickerStatus = 1;
       TurnOnLamp(8);  // switch on the outlane lamp
       break;
-    case 1:  // ball in outlane
+    case RESCUE_OUTLANE_SWITCH_HIT:  // ball in outlane
       switch (F14_RescueKickerStatus){
         case 1:
           ActivateSolenoid(0,13);  // Fire the kicker
@@ -2223,14 +2305,14 @@ void F14_RescueKickerHandler(byte Event){
           F14_RescueKickerStatus = 2;
           TurnOffLamp(8);  // Turn the lamp off
           AddBlinkLamp(8,100);  // then blink it
-          grace_timer = ActivateTimer(2000, 2, F14_RescueKickerHandler);  // cancel in 2 secs
+          grace_timer = ActivateTimer(2000, RESCUE_GRACE_PERIOD_TIMEDOUT, F14_RescueKickerHandler);  // cancel in 2 secs
           break;
         case 2:
           ActivateSolenoid(0,13);  // if in grace period just fire kicker again
           break;
       }
       break;
-    case 2:  // time is up
+    case RESCUE_GRACE_PERIOD_TIMEDOUT:  // time is up
       grace_timer = 0;
       RemoveBlinkLamp(8);
       F14_RescueKickerStatus = 0;
@@ -2238,8 +2320,16 @@ void F14_RescueKickerHandler(byte Event){
   }
 }
 
+
+//     ___________       __  ____ ____ __             ____       
+//    / __<  / / / _  __/ / / / //_/ // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/| |/ / /_/ / ,< / _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__|___/\____/_/|_/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                              
+
 // This handles various things for the vUK (popper top right)
 // The incoming event will specify what the routine is being called for
+
 // 0 = ball landed in kicker
 // 1 = play animation ahead of eject
 // 2 = eject ball
@@ -2247,7 +2337,7 @@ void F14_vUKHandler(byte Event) {
   
   byte ball_to_be_locked = 0;
   byte multiball_to_start = 0;
-  byte noisy_switch_timer = 0;
+  static byte noisy_switch_timer = 0;
 
   
   
@@ -2260,7 +2350,7 @@ void F14_vUKHandler(byte Event) {
   switch (Event) {
     // ball has landed in kicker.  If it's going to be sent to a lock, we need to do the WEAPONS etc animation
     // before ejecting.  Also need to award launch bonus if needed
-    case 0:             // will need expanding when lock logic coded
+    case VUK_BALL_CAPTURED:             // will need expanding when lock logic coded
       if (noisy_switch_timer) {
         if (APC_settings[DebugMode]){
           Serial.println("F14_vUKHandler ignoring noisy switch");
@@ -2268,7 +2358,7 @@ void F14_vUKHandler(byte Event) {
         return;
       }
       else {
-        noisy_switch_timer = ActivateTimer(100,4,F14_vUKHandler);
+        noisy_switch_timer = ActivateTimer(100,VUK_NOISY_SWITCH_TIMEOUT,F14_vUKHandler);
       }
       if (Multiballs==1) { // single ball play
         F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
@@ -2280,23 +2370,23 @@ void F14_vUKHandler(byte Event) {
       }
       else { // in multiball
         F14_AnimationHandler(5,0); // safe landing, no callback on that one, it just plays
-        ActivateTimer(2000,1,F14_vUKHandler);
+        ActivateTimer(2000,VUK_PLAY_FLASHERS,F14_vUKHandler);
         // play some fancy animation with callback to launch ball
       }
       break;
-    case 1:  // eject the ball
+    case VUK_PLAY_FLASHERS:  // eject the ball
       PlayFlashSequence((byte *)F14_LockedOnSeq);
       
-      ActivateTimer(1000,2,F14_vUKHandler);
+      ActivateTimer(1000,VUK_EJECT,F14_vUKHandler);
       break;
-    case 2:  // Timer over, send the ball on its way
+    case VUK_EJECT:  // Timer over, send the ball on its way
       F14_LampShowPlayer(0,255);
-      noisy_switch_timer = ActivateTimer(100,4,F14_vUKHandler);  // handle noisy switch on eject
+      noisy_switch_timer = ActivateTimer(100,VUK_NOISY_SWITCH_TIMEOUT,F14_vUKHandler);  // handle noisy switch on eject
       ActA_BankSol(3);
       F14_DivertorHandler(0);   // let the divertor know a ball is on the way
       
       break;
-    case 3:  // continue running after launch bonus
+    case VUK_CALL_FROM_LAUNCH_BONUS:  // continue running after launch bonus
         // work out if the ball is going to be locked (at least one lock with status 1)
         for (byte i=0; i<3; i++) {
           if (F14_LockStatus[Player][i]==1) {
@@ -2321,7 +2411,7 @@ void F14_vUKHandler(byte Event) {
           F14_vUKHandler(1);  // otherwise just kick the ball out.
         }
         break;
-    case 4:
+    case VUK_NOISY_SWITCH_TIMEOUT:
       noisy_switch_timer = 0;
       break;
   }
