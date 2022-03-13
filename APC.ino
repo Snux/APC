@@ -198,7 +198,7 @@ const byte APC_defaults[64] =  {0,3,3,1,2,0,0,0,      // system default settings
 
 const char TxTGameSelect[6][17] = {{" BASE  CODE     "},{" BLACK KNIGHT   "},{"    PINBOT      "},{"REMOTE CONTROL  "},{"   TUTORIAL     "},{"   F14          "}};
 const char TxTLEDSelect[4][17] = {{"   NO   LEDS    "},{"   ADDITIONAL   "},{"PLAYFLD ONLY    "},{"PLAYFLDBACKBOX  "}};
-const char TxTDisplaySelect[9][17] = {{"4 ALPHA+CREDIT  "},{" SYS11 PINBOT   "},{" SYS11  F-14    "},{" SYS11  BK2K    "},{" SYS11   TAXI   "},{" SYS11 RIVERBOAT"},{" DATA EAST 2X16"},{"123456123456    "},{"12345671234567  "}};
+const char TxTDisplaySelect[9][17] = {{"4 ALPHA+CREDIT  "},{" SYS11 PINBOT   "},{" SYS11  F-14    "},{" SYS11  BK2K    "},{" SYS11   TAXI   "},{" SYS11 RIVERBOAT"},{" DATA EAST 2X16 "},{"123456123456    "},{"12345671234567  "}};
 const char TxTConType[3][17] = {{"        OFF     "},{"       ONBOARD  "},{"        USB     "}};
 const char TxTLampColSelect[3][17] = {{"       COLUMN1  "},{"       COLUMN8  "},{"        NONE    "}};
 
@@ -1043,9 +1043,9 @@ void LEDsetColor(byte Red, byte Green, byte Blue) {   // set a new color
   LEDhandling(6, Blue);
   LEDhandling(7, 4);}
 
-void LEDsetColorMode(byte Mode) {                     // Mode = 0 -> lamps being lit get the LEDsetColor
-  if (Mode < 3) {                                     // Mode 1 -> lamps keep their color
-    LEDhandling(6, 64 + Mode);                        // Mode 2 -> lamps set in the following frame get the new color immediately
+void LEDsetColorMode(byte Mode) {                     // Mode 0 -> lamps being lit get the LEDsetColor / Mode 1 -> lamps keep their color
+  if (Mode < 5) {                                     // Mode 2 -> lamps set in the following frame get the new color immediately / Mode 3 -> only the color of the LEDs is changed, but they're not turned on
+    LEDhandling(6, 64 + Mode);                        // Mode 4 -> LED state is frozen
     LEDhandling(7, 1);}}
 
 void LEDchangeColor(byte LED) {                       // the color of the selected LED is changed to LEDsetColor
