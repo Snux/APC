@@ -20,6 +20,15 @@ const byte LAMP_SHOW_TWINKLE=3;
 const byte QUIT_SHOW=255;
 const byte START_SHOW=0;
 
+const byte ANIMATION_WEAPONS = 0;
+const byte ANIMATION_BALL_LOCKED = 1;
+const byte ANIMATION_LOCK_IS_LIT = 2;
+const byte ANIMATION_START_MULTIBALL = 3;
+const byte ANIMATION_LAUNCH_BONUS = 4;
+const byte ANIMATION_SAFE_LANDING = 5;
+const byte ANIMATION_START = 0;
+const byte ANIMATION_END = 1;
+
 const byte SPINNER_HIT=0;
 const byte SPINNER_LIGHT=1;
 const byte SPINNER_RESET=2;
@@ -37,3 +46,29 @@ const byte VUK_PLAY_FLASHERS = 1;
 const byte VUK_EJECT = 2;
 const byte VUK_CALL_FROM_LAUNCH_BONUS = 3;
 const byte VUK_NOISY_SWITCH_TIMEOUT = 4;
+
+const byte AWARD_BONUS = 0;
+
+const byte ORBIT_RIGHT_SWITCH_HIT = 0;
+const byte ORBIT_LEFT_SWITCH_HIT = 1;
+const byte ORBIT_LIGHT_RIGHT_SIDE_BONUS = 2;
+const byte ORBIT_LIGHT_LEFT_SIDE_BONUS = 3;
+const byte ORBIT_LIGHT_BOTH_SIDE_BONUS = 4;
+const byte ORBIT_BONUSX_TIMED_OUT = 5;
+const byte ORBIT_MADE = 6;
+const byte ORBIT_RESET = 7;
+const byte ORBIT_ANTI_CLOCK_TIMEOUT = 9;
+const byte ORBIT_CLOCK_TIMEOUT = 10;
+
+const byte BONUS_INCREMENT = 0;
+const byte BONUS_MULT_INCREMENT = 1;
+const byte BONUS_LAMP_REFRESH = 2;
+
+const byte LAUNCH_BONUS_SCORE = 1;
+const byte LAUNCH_BONUS_LAMP_STROBE = 3;
+const byte LAUNCH_BONUS_RESET = 4;
+
+const byte LINE_OF_DEATH_HIT = 0;
+const byte AWARD_KILL = 1;
+const byte RESET_KILL_LAMPS = 2;
+const byte LINE_OF_DEATH_STROBE = 3;

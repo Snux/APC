@@ -341,7 +341,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[1] = 0;
       F14_LockOccupied[2] = 0;
       F14_LocksClearing = 0; 
-      F14_LineOfDeathHandler(2);  // sort the kill lamps out
+      F14_LineOfDeathHandler(RESET_KILL_LAMPS);  // sort the kill lamps out
       F14_RescueTargetHandler(START_HANDLER); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
       F14_NewBall(4); // release a new ball (4 expected balls in the trunk)
@@ -405,14 +405,14 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_Multiplier = 1;
   F14_Bonus = 0;
   ExBalls = 0;
-  F14_BonusHandler(2);                                // Reset bonus lamps
+  F14_BonusHandler(BONUS_LAMP_REFRESH);                                // Reset bonus lamps
   if (F14_Kills[Player] == 7) {  // reset kills if we completed them all on previous ball
     F14_Kills[Player] = 0;
   }
-  F14_LineOfDeathHandler(2);
+  F14_LineOfDeathHandler(RESET_KILL_LAMPS);
   F14_SpinnerHandler(SPINNER_RESET);
-  F14_OrbitHandler(7);
-  F14_LaunchBonusHandler(4);
+  F14_OrbitHandler(ORBIT_RESET);
+  F14_LaunchBonusHandler(LAUNCH_BONUS_RESET);
   PlayMusic(50, "1_02.snd");                      // play music track
   QueueNextMusic("1_02.snd");  //loop it
 
@@ -738,7 +738,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   
   case 47:
-    F14_OrbitHandler(0);  //right orbit
+    F14_OrbitHandler(ORBIT_RIGHT_SWITCH_HIT);  //right orbit
     break;
   case 48: // Spinner
     F14_SpinnerHandler(SPINNER_HIT);
@@ -755,22 +755,22 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   // Line of death (Yagov)
   case 55:
-    F14_LineOfDeathHandler(0);
+    F14_LineOfDeathHandler(LINE_OF_DEATH_HIT);
     break;
   case 56:  //left orbit switch
-    F14_OrbitHandler(1);
+    F14_OrbitHandler(ORBIT_LEFT_SWITCH_HIT);
     break;
   case 59: // left inlane
-    F14_OrbitHandler(2);  // light the right bonus x lane
-    F14_LaunchBonusHandler(0); // launch bonus
+    F14_OrbitHandler(ORBIT_LIGHT_RIGHT_SIDE_BONUS);  // light the right bonus x lane
+    F14_LaunchBonusHandler(LAUNCH_BONUS_SCORE); // launch bonus
     F14_BonusHandler(0); // increment end of ball bonus
     if (F14_YagovKills[Player]==0) {  // if the inlane 'lite kill' are active, tell the handler
       F14_CentreKillHandler(0);
     }
     break;
   case 60:  //right inlane
-    F14_OrbitHandler(3);
-    F14_BonusHandler(0); // increment end of ball bonus
+    F14_OrbitHandler(ORBIT_LIGHT_LEFT_SIDE_BONUS);
+    F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
     if (F14_YagovKills[Player]==0) { // if the inlane 'lite kill' are active, tell the handler
       F14_CentreKillHandler(0);
     }
@@ -778,10 +778,10 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 61: // left drain
     F14_RescueKickerHandler(RESCUE_OUTLANE_SWITCH_HIT);
-    F14_BonusHandler(0); // increment end of ball bonus
+    F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
     break;
   case 62: // right drain
-    F14_BonusHandler(0); // increment end of ball bonus
+    F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
     break;
   case 65: // left slingshot
     ActivateSolenoid(0, 17); // fire kicker
@@ -1229,7 +1229,7 @@ void F14_LockHandler(byte Event) {
       }
       F14_LockOccupied[0]=1;  // Set the lock as occupied
       F14_LockLampHandler();
-      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_AnimationHandler(ANIMATION_BALL_LOCKED ,ANIMATION_START);  // Enemy locked
       F14_LampShowPlayer(2,0);
       break;
     case 5: // Ball locked in 2
@@ -1240,7 +1240,7 @@ void F14_LockHandler(byte Event) {
       }
       F14_LockOccupied[1]=1;
       F14_LockLampHandler();
-      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_AnimationHandler(ANIMATION_BALL_LOCKED ,ANIMATION_START);  // Enemy locked
       F14_LampShowPlayer(2,0);
       break;
     case 6: // Ball locked in 3
@@ -1252,7 +1252,7 @@ void F14_LockHandler(byte Event) {
       }
       F14_LockOccupied[2]=1;
       F14_LockLampHandler();
-      F14_AnimationHandler(1,0);  // Enemy locked
+      F14_AnimationHandler(ANIMATION_BALL_LOCKED ,ANIMATION_START);  // Enemy locked
       F14_LampShowPlayer(2,0);
       break;
     // if a player has a lock in place (status 2), but the lock doesn't actually contain a ball
@@ -1269,7 +1269,7 @@ void F14_LockHandler(byte Event) {
       }
       break;
     case 8:  // multiball intro
-      F14_AnimationHandler(3,0);   // Flashing stuff, will get called back with Event 9 when done.
+      F14_AnimationHandler(ANIMATION_START_MULTIBALL, ANIMATION_START);   // Flashing stuff, will get called back with Event 9 when done.
       break;
     case 9:  // start multiball
       Multiballs = 4; // There will be 4 on the playfield
@@ -1308,7 +1308,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 22: // Lock number 1
       if (Multiballs==1) { // single ball play
-        F14_BonusHandler(0); // increment end of ball bonus
+        F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[0]=1;
           break;
@@ -1335,7 +1335,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 23: // Lock number 2
       if (Multiballs==1) {
-        F14_BonusHandler(0); // increment end of ball bonus
+        F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[1]=1;
           break;
@@ -1361,7 +1361,7 @@ void F14_LockHandler(byte Event) {
       break;
     case 21: // Lock number 3
       if (Multiballs==1) {
-        F14_BonusHandler(0); // increment end of ball bonus
+        F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[2]=1;
           break;
@@ -1502,6 +1502,13 @@ byte landing_count=0;
 
 }
 
+
+//     ___________   ___                     __ __             ____       
+//    / __<  / / /  / _ )___  ___  __ _____ / // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / _  / _ \/ _ \/ // (_-</ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/____/\___/_//_/\_,_/___/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                       
+
 // Handle bonus and bonus multiplier
 // Event 0 - increment bonus
 // Event 1 - increment multiplier
@@ -1510,19 +1517,19 @@ void F14_BonusHandler(byte Event){
 
   
   switch(Event) {
-    case 0:
+    case BONUS_INCREMENT:
       if (F14_Bonus < 127) {  // max is 127, playfield can't display more
         F14_Bonus++;
-        F14_BonusHandler(2);  // update the lamps
+        F14_BonusHandler(BONUS_LAMP_REFRESH);  // update the lamps
       }
       break;
-    case 1:
+    case BONUS_MULT_INCREMENT:
       if (F14_Multiplier < 8) {
         F14_Multiplier++;
-        F14_BonusHandler(2);  // update the lamps
+        F14_BonusHandler(BONUS_LAMP_REFRESH);  // update the lamps
       }
       break;
-    case 2:
+    case BONUS_LAMP_REFRESH:
       if (F14_Bonus % 2)
         TurnOnLamp(17);
       else
@@ -1561,6 +1568,13 @@ void F14_BonusHandler(byte Event){
   }
 }
 
+
+//     ___________   __   _          ____  ______           __  __   __ __             ____       
+//    / __<  / / /  / /  (_)__  ___ / __ \/ _/ _ \___ ___ _/ /_/ /  / // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / /__/ / _ \/ -_) /_/ / _/ // / -_) _ `/ __/ _ \/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/____/_/_//_/\__/\____/_//____/\__/\_,_/\__/_//_/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                                               
+
 // Handle the line of death kickback
 // Event 0 - switch activated, so kick the ball back and increment the kills
 // Event 1 - award kill without firing kickback
@@ -1574,9 +1588,9 @@ void F14_LineOfDeathHandler(byte Event) {
   static int kill_step = 0;
   static int kill_loop = 0;
   switch (Event){
-    case 0:
+    case LINE_OF_DEATH_HIT:
       ActivateSolenoid(0, 12);  // fall through to case 1 is correct in this case
-    case 1: 
+    case AWARD_KILL: 
       if (F14_ExtraBallLit[Player]) {
         F14_AwardExtraBall();
         F14_ExtraBallLit[Player] = 0;
@@ -1620,9 +1634,9 @@ void F14_LineOfDeathHandler(byte Event) {
       kill_step = 0;
       kill_loop = 0;
       F14_LineOfDeathHandler(2);  // update the lamps
-      ActivateTimer(200,3,F14_LineOfDeathHandler);
+      ActivateTimer(200,LINE_OF_DEATH_STROBE,F14_LineOfDeathHandler);
       break;
-    case 2:
+    case RESET_KILL_LAMPS:
       for (byte i=1; i < 8; i++) {
         if (i > F14_Kills[Player])
           TurnOffLamp(i+101);
@@ -1643,7 +1657,7 @@ void F14_LineOfDeathHandler(byte Event) {
         TurnOffLamp(64);
       }
       break;
-    case 3:
+    case LINE_OF_DEATH_STROBE:
       switch(kill_step) {
         case 0:
           WriteLower2("      2 5       ");
@@ -1682,7 +1696,7 @@ void F14_LineOfDeathHandler(byte Event) {
         kill_step=0;
       }
       if (kill_loop<5) {
-        ActivateTimer(40,3,F14_LineOfDeathHandler);
+        ActivateTimer(40,LINE_OF_DEATH_STROBE,F14_LineOfDeathHandler);
       }
       else {
         SwitchDisplay(1);  // all done, back to normal
@@ -1706,7 +1720,7 @@ void F14_CentreKillHandler(byte Event) {
       break;
     case 1:
       if (centre_kill_timer) {
-        F14_LineOfDeathHandler(1); // award kill without firing kickback
+        F14_LineOfDeathHandler(AWARD_KILL); // award kill without firing kickback
         F14_CentreKillHandler(2); // shut this down, only awarded once
       }
       break;
@@ -1717,6 +1731,14 @@ void F14_CentreKillHandler(byte Event) {
       }
   }
 }
+
+
+
+//     ___________   __                      __   ___                     __ __             ____       
+//    / __<  / / /  / /  ___ ___ _____  ____/ /  / _ )___  ___  __ _____ / // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / /__/ _ `/ // / _ \/ __/ _ \/ _  / _ \/ _ \/ // (_-</ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/____/\_,_/\_,_/_//_/\__/_//_/____/\___/_//_/\_,_/___/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                                                    
 
 // The launch bonus is awarded when a left inlane is followed by a shot to the vuk
 // within 2 seconds.  During this time the bonus lamps strobe.
@@ -1739,7 +1761,7 @@ void F14_LaunchBonusHandler(byte Event) {
 
 
   switch (Event) {
-    case 0:
+    case START_HANDLER:
       if (bonus_enabled) {
         break;
       }
@@ -1749,16 +1771,16 @@ void F14_LaunchBonusHandler(byte Event) {
       }
       strobe_loop=0;
       strobe_step=0;
-      strobe_timer = ActivateTimer(100,3,F14_LaunchBonusHandler);
+      strobe_timer = ActivateTimer(100,LAUNCH_BONUS_LAMP_STROBE,F14_LaunchBonusHandler);
       
       break;
-    case 1:
+    case LAUNCH_BONUS_SCORE:
       if (bonus_enabled) {
         if (F14_LaunchBonus < 50) {
           F14_LaunchBonus += 5;
         }
         Points[Player] += F14_LaunchBonus * 10000;
-        F14_AnimationHandler(4,0);  // Launch bonus animation
+        F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_START);  // Launch bonus animation
         strobe_loop = 10;  // this will shut down the timer
       }
       else { // no bonus, just call back to vuk handler
@@ -1766,13 +1788,13 @@ void F14_LaunchBonusHandler(byte Event) {
         F14_vUKHandler(VUK_CALL_FROM_LAUNCH_BONUS);
       }
       break;
-    case 2:
+    case QUIT_HANDLER:
       bonus_enabled = 0;
       strobe_timer = 0;
-      F14_BonusHandler(2);  // reset the bonus lamps after we've been strobing them
+      F14_BonusHandler(BONUS_LAMP_REFRESH);  // reset the bonus lamps after we've been strobing them
       F14_LockLampHandler(); // and the release/lock lamps
       break;
-    case 3:
+    case LAUNCH_BONUS_LAMP_STROBE:
       switch (strobe_step) {  // a little work could remove this monster case statement and calculate it
         case 0:
           TurnOnLamp(17);
@@ -1825,13 +1847,13 @@ void F14_LaunchBonusHandler(byte Event) {
         strobe_loop++;
       }
       if (strobe_loop>9) {
-        F14_LaunchBonusHandler(2); // switch it off
+        F14_LaunchBonusHandler(QUIT_HANDLER); // switch it off
       }
       else {
-        strobe_timer = ActivateTimer(20,3,F14_LaunchBonusHandler);
+        strobe_timer = ActivateTimer(20,LAUNCH_BONUS_LAMP_STROBE,F14_LaunchBonusHandler);
       }
       break;
-    case 4:
+    case LAUNCH_BONUS_RESET:
       F14_LaunchBonus = 0;
       break;
   }
@@ -1949,7 +1971,7 @@ void F14_TomcatTargetHandler(byte Target) {
   // Target is still flashing, so score it
   if (F14_TomcatTargets[Player][Target] == 0) {
     Points[Player] += 1000;
-    F14_BonusHandler(0);  // increment the end of ball bonus
+    F14_BonusHandler(BONUS_INCREMENT);  // increment the end of ball bonus
     F14_TomcatTargets[Player][Target]  = 1;   // Mark the target as hit
       if (Target < 6) {  // and the corresponding one on the other half of playfield
         F14_TomcatTargets[Player][Target+6] = 1;
@@ -1968,7 +1990,7 @@ void F14_TomcatTargetHandler(byte Target) {
         for (byte j=0; j<12; j++) {
           F14_TomcatTargets[Player][j]=0;}
         if (Multiballs==1) { // not during multiball
-          F14_AnimationHandler(2,0);
+          F14_AnimationHandler(ANIMATION_LOCK_IS_LIT, ANIMATION_START);
           F14_LockHandler(0); // Tell the lock handler we can light another lock
           F14_TomcatsCompleted[Player] += 1;
           if (F14_TomcatsCompleted[Player] == 1) {
@@ -2036,7 +2058,7 @@ void F14_1to6Handler(byte Event) {
       if (current_lamp == F14_1to6SwitchNumbers[Event-41]) {
         Points[Player] += 10000;
         F14_SpinnerHandler(SPINNER_LIGHT); // increase spinner score to 2k
-        F14_OrbitHandler(4);  // light left and right orbit bonusx
+        F14_OrbitHandler(ORBIT_LIGHT_BOTH_SIDE_BONUS);  // light left and right orbit bonusx
       }
       else {
         Points[Player] += 500;
@@ -2062,6 +2084,14 @@ byte F14_SpotTomcat() {
     Serial.println((byte) spot_target); }
 }
 
+
+
+
+//     ___________  ____      __   _ __  __ __             ____       
+//    / __<  / / / / __ \____/ /  (_) /_/ // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _// /_/ / __/ _ \/ / __/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__\____/_/ /_.__/_/\__/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                   
 
 // Orbit handler
 // Event 0 - ball hit right switch
@@ -2103,61 +2133,61 @@ void F14_OrbitHandler(byte Event) {
     // If the ball was travelling from left to right, the loop has been made
     // If loop made and left bonus X was lit, increase multiplier
     // If loop made and left bonus X not lit, light it
-    case 0:  // switch at right side of orbit hit
+    case ORBIT_RIGHT_SWITCH_HIT:  // switch at right side of orbit hit
       if (clockwise_timer) {
         KillTimer(clockwise_timer);
         clockwise_timer = 0;
         if (left_bonusX_lit) {
-          F14_BonusHandler(1);
+          F14_BonusHandler(BONUS_MULT_INCREMENT);
           F14_HotStreakHandler(0);  // enable hotstreak
-          F14_OrbitHandler(6);  // extend the timer
+          F14_OrbitHandler(ORBIT_MADE);  // extend the timer
         }
         else {
-          F14_OrbitHandler(3);
+          F14_OrbitHandler(ORBIT_LIGHT_LEFT_SIDE_BONUS);
         }
       }
       else if (anti_clock_timer==0) {
-        anti_clock_timer = ActivateTimer(1500, 9, F14_OrbitHandler);
+        anti_clock_timer = ActivateTimer(1500, ORBIT_ANTI_CLOCK_TIMEOUT, F14_OrbitHandler);
       }
 
       break;
-    case 1:  // switch at left side hit
+    case ORBIT_LEFT_SWITCH_HIT:  // switch at left side hit
       if (anti_clock_timer) {
         KillTimer(anti_clock_timer);
         anti_clock_timer = 0;
         if (right_bonusX_lit) {
-          F14_BonusHandler(1);  // bump the multiplier
+          F14_BonusHandler(BONUS_MULT_INCREMENT);  // bump the multiplier
           F14_HotStreakHandler(0); // enable hotstreak
-          F14_OrbitHandler(6); // extend the timer
+          F14_OrbitHandler(ORBIT_MADE); // extend the timer
         }
         else {
-          F14_OrbitHandler(2);
+          F14_OrbitHandler(ORBIT_LIGHT_RIGHT_SIDE_BONUS);
         }
       }
       else if (clockwise_timer==0) {
-        clockwise_timer = ActivateTimer(1500, 10, F14_OrbitHandler);
+        clockwise_timer = ActivateTimer(1500, ORBIT_CLOCK_TIMEOUT, F14_OrbitHandler);
       }
       break;
-    case 2:
+    case ORBIT_LIGHT_RIGHT_SIDE_BONUS:
       right_bonusX_lit = 1;
       AddBlinkLamp(55,150);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
       }
-      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      orbit_bonusx_timer = ActivateTimer(8000, ORBIT_BONUSX_TIMED_OUT, F14_OrbitHandler);
       break;
-    case 3:
+    case ORBIT_LIGHT_LEFT_SIDE_BONUS:
       left_bonusX_lit = 1;
       AddBlinkLamp(32,150);
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
       }
-      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      orbit_bonusx_timer = ActivateTimer(8000, ORBIT_BONUSX_TIMED_OUT, F14_OrbitHandler);
       
       break;
-    case 4:
+    case ORBIT_LIGHT_BOTH_SIDE_BONUS:
       left_bonusX_lit = 1;
       right_bonusX_lit = 1;
       AddBlinkLamp(32,150);
@@ -2166,22 +2196,22 @@ void F14_OrbitHandler(byte Event) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
       }
-      orbit_bonusx_timer = ActivateTimer(8000, 5, F14_OrbitHandler);
+      orbit_bonusx_timer = ActivateTimer(8000, ORBIT_BONUSX_TIMED_OUT, F14_OrbitHandler);
       break;
-    case 5: // timed out
+    case ORBIT_BONUSX_TIMED_OUT: // timed out
       RemoveBlinkLamp(32);
       RemoveBlinkLamp(55);
       left_bonusX_lit = 0;
       right_bonusX_lit = 0;
       orbit_bonusx_timer = 0;
       break;
-    case 6:  // orbit made while bonusx lit, reset the timer
+    case ORBIT_MADE:  // orbit made while bonusx lit, reset the timer
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
       }
-      orbit_bonusx_timer = ActivateTimer(5000, 5, F14_OrbitHandler);
-    case 7:  // reset the orbit handler (new ball for example)
+      orbit_bonusx_timer = ActivateTimer(5000, ORBIT_BONUSX_TIMED_OUT, F14_OrbitHandler);
+    case ORBIT_RESET:  // reset the orbit handler (new ball for example)
       if (orbit_bonusx_timer) {
         KillTimer(orbit_bonusx_timer);
         orbit_bonusx_timer = 0;
@@ -2199,10 +2229,10 @@ void F14_OrbitHandler(byte Event) {
       RemoveBlinkLamp(32);
       RemoveBlinkLamp(55);
       break;
-    case 9:
+    case ORBIT_ANTI_CLOCK_TIMEOUT:
       anti_clock_timer = 0;
       break;
-    case 10:
+    case ORBIT_CLOCK_TIMEOUT:
       clockwise_timer = 0;
       break;
   }
@@ -2361,15 +2391,15 @@ void F14_vUKHandler(byte Event) {
         noisy_switch_timer = ActivateTimer(100,VUK_NOISY_SWITCH_TIMEOUT,F14_vUKHandler);
       }
       if (Multiballs==1) { // single ball play
-        F14_LaunchBonusHandler(1);  // award the launch bonus if applicable
+        F14_LaunchBonusHandler(LAUNCH_BONUS_SCORE);  // award the launch bonus if applicable
                                     // that will callback here with event 3 to continue
-        F14_BonusHandler(0); // increment end of ball bonus
-        F14_BonusHandler(0); // increment end of ball bonus (again for 2k!)
+        F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
+        F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus (again for 2k!)
         F14_SpotTomcat();
         F14_LampShowPlayer(0,0);
       }
       else { // in multiball
-        F14_AnimationHandler(5,0); // safe landing, no callback on that one, it just plays
+        F14_AnimationHandler(ANIMATION_SAFE_LANDING,ANIMATION_START); // safe landing, no callback on that one, it just plays
         ActivateTimer(2000,VUK_PLAY_FLASHERS,F14_vUKHandler);
         // play some fancy animation with callback to launch ball
       }
@@ -2400,7 +2430,7 @@ void F14_vUKHandler(byte Event) {
 
         if (ball_to_be_locked) {
           F14_LockIsLitAnimation(99); // Kill that animation, if running
-          F14_AnimationHandler(0,0); // WEAPONS SYSTEMS etc.  Will call back to vuk handler when done.
+          F14_AnimationHandler(ANIMATION_WEAPONS,ANIMATION_START); // WEAPONS SYSTEMS etc.  Will call back to vuk handler when done.
         }
         else if (multiball_to_start) {
           F14_LockHandler(8);
@@ -2417,6 +2447,13 @@ void F14_vUKHandler(byte Event) {
   }
 }
 
+
+//     ___________   ___        _            __  _           __ __             ____       
+//    / __<  / / /  / _ | ___  (_)_ _  ___ _/ /_(_)__  ___  / // /__ ____  ___/ / /__ ____
+//   / _/ / /_  _/ / __ |/ _ \/ /  ' \/ _ `/ __/ / _ \/ _ \/ _  / _ `/ _ \/ _  / / -_) __/
+//  /_/  /_/ /_/__/_/ |_/_//_/_/_/_/_/\_,_/\__/_/\___/_//_/_//_/\_,_/_//_/\_,_/_/\__/_/   
+//            /___/                                                                       
+
 // Central Handler for animations (display, flashers etc) 
 // Animation = which one
 // Status 0 = start, Status 1 = finished
@@ -2432,38 +2469,38 @@ void F14_AnimationHandler(byte Animation, byte Status) {
   }
   
   switch(Animation) {
-    case 0:
-      if (Status == 0) {
-        F14_WeaponsAnimation(0);  // WEAPONS SYSTEMS etc
+    case ANIMATION_WEAPONS:
+      if (Status == ANIMATION_START) {
+        F14_WeaponsAnimation(ANIMATION_START);  // WEAPONS SYSTEMS etc
       }
       else {
-        F14_vUKHandler(1);  // callback to vuk handler when animation is complete
+        F14_vUKHandler(VUK_PLAY_FLASHERS);  // callback to vuk handler when animation is complete
       }
       break;
-    case 1:
-      F14_LockedBallAnimation(0);   // Enemy X locked
+    case ANIMATION_BALL_LOCKED:
+      F14_LockedBallAnimation(ANIMATION_START);   // Enemy X locked
       break;
-    case 2:
-      F14_LockIsLitAnimation(0);
+    case ANIMATION_LOCK_IS_LIT:
+      F14_LockIsLitAnimation(ANIMATION_START);
       break;
-    case 3:
-      if (Status==0) {
-        F14_MultiBallAnimation(0);
+    case ANIMATION_START_MULTIBALL:
+      if (Status==ANIMATION_START) {
+        F14_MultiBallAnimation(ANIMATION_START);
       }
       else {
         F14_LockHandler(9); // tell the lock handler we're ready to go!
       }
       break;
-    case 4:
-      if (Status == 0) {
-        F14_LaunchBonusAnimation(0);
+    case ANIMATION_LAUNCH_BONUS:
+      if (Status == ANIMATION_START) {
+        F14_LaunchBonusAnimation(ANIMATION_START);
       }
       else {
-        F14_vUKHandler(3);  // call back to vuk handler when animation complete.
+        F14_vUKHandler(VUK_CALL_FROM_LAUNCH_BONUS);  // call back to vuk handler when animation complete.
       }
       break;
-    case 5:
-      F14_SafeLandingAnimation(0);
+    case ANIMATION_SAFE_LANDING:
+      F14_SafeLandingAnimation(ANIMATION_START);
       break;
   }
 }
@@ -2573,9 +2610,8 @@ void F14_BallEnd(byte Event) {
 //            InLock++;}}
         ActivateTimer(1000, 0, F14_BallEnd);}
       else {
-        //LockedBalls[Player] = 0;
         BlinkScore(0);                                // stop score blinking
-        F14_AwardBonus(0);
+        F14_AwardBonus(AWARD_BONUS);
         StopPlayingMusic();
         //F14_BallEnd2(BallsInTrunk);                    // add bonus count here and start BallEnd2 afterwards
       }}}}
@@ -2643,7 +2679,7 @@ void F14_AwardBonus (byte Event) {
   static byte temp_bonus;
 
   switch (Event) {
-    case 0:
+    case AWARD_BONUS:
       total_bonus = F14_Bonus * F14_Multiplier * 1000;
       temp_bonus = F14_Bonus;
       WritePlayerDisplay((char *) "BONUS  ",1);
@@ -2725,7 +2761,7 @@ void F14_AwardBonus (byte Event) {
       }
       total_bonus = total_bonus - 1000;
       Points[Player] = Points[Player] + 1000;
-      F14_BonusHandler(2); // update the lamps as we count down.
+      F14_BonusHandler(BONUS_LAMP_REFRESH); // update the lamps as we count down.
       break;
 
 
@@ -3397,7 +3433,7 @@ void F14_WeaponsAnimation(byte Event) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
     //F14_GIOn(255,255,255);
-    F14_AnimationHandler(0,1); // let the handler know animation is done.
+    F14_AnimationHandler(ANIMATION_WEAPONS,ANIMATION_END); // let the handler know animation is done.
   }
   else if (Event < 28) {
     display_step_timer = ActivateTimer(75,Event+1,F14_WeaponsAnimation);
@@ -3487,7 +3523,7 @@ void F14_MultiBallAnimation(byte Event) {
   if (Event > 18) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_AnimationHandler(3,1); // let the handler know animation is done.
+    F14_AnimationHandler(ANIMATION_START_MULTIBALL,ANIMATION_END); // let the handler know animation is done.
   }
   else {
     display_step_timer = ActivateTimer(200,Event+1,F14_MultiBallAnimation);
@@ -3548,7 +3584,7 @@ static byte display_step_timer = 0;
   if (Event > 6) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_AnimationHandler(4,1); // let the handler know animation is done.
+    F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_LaunchBonusAnimation);
@@ -3600,7 +3636,7 @@ static byte display_step_timer = 0;
   if (Event > 6) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_AnimationHandler(4,1); // let the handler know animation is done.
+    F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_SafeLandingAnimation);
