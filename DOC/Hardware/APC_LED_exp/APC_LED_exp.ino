@@ -1,10 +1,11 @@
 #include "Arduino.h"
+#include "hsv.h"
 #include <Adafruit_NeoPixel.h>
 #ifdef __AVR__
 #include <avr/power.h>
 #endif
 #define PIN            12
-#define NUMPIXELS      64
+#define NUMPIXELS      70
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 byte RecByte = 0;                                       // received byte
@@ -20,7 +21,10 @@ byte Command = 0;                                       // LED command currently
 byte CommandCount = 0;                                  // counts the bytes received by the color select command
 byte TurnOn[6][8];                                      // the list of the lamps currently being turned on
 byte TurnOff[6][8];                                     // the list of the lamps currently being turned off
-uint32_t Ring;
+uint32_t RingColour = 0;
+uint32_t OldColour = 0;
+long interval = 65;
+long previous_ms = 0;
 
 void setup() {
   pixels.begin();
@@ -39,6 +43,14 @@ void setup() {
   RecFlag = PINB && 1;}
 
 void loop() {
+  unsigned long current_ms = millis();
+ 
+  // check the time 
+  if(current_ms - previous_ms > interval) 
+  {
+    previous_ms = current_ms;   
+    update_radar_lamps();
+  }
   if ((PINB && 1) != RecFlag) {                         // get byte
     RecByte = PIND;                                     // store it
     //Serial.println(RecByte);
@@ -141,10 +153,13 @@ void loop() {
           break;
         case 170:                                       // sync command
           Sync = 0;                                     // the next four cycles (8 bytes) represent a lamp pattern
-          Ring = pixels.getPixelColor(54);      // Get the color of the first ring pixel
-          for (i=55; i<70; i++) {
-            pixels.setPixelColor(i,Ring); // Set the rest of the ring the same
-          }
+          /*RingColour = pixels.getPixelColor(53);      // Get the color of the first ring pixel
+          if (RingColour != OldColour) {
+            for (i=54; i<69; i++) {
+              pixels.setPixelColor(i,RingColour); // Set the rest of the ring the same
+            }
+            OldColour = RingColour;
+          }*/
           pixels.show();                                // update the LEDs
           break;
         case 192:                                       // color select command
@@ -156,3 +171,12 @@ void loop() {
           CommandCount = 1;
           break;
         }}}}}
+
+        void update_radar_lamps() {
+            static int position = 0;
+            for (int i = 0; i < 16; i++)
+              pixels.setPixelColor((i + position)% 16 + 53, getPixelColorHsv(i+53, 21850, 100, pixels.gamma8(53+i * (255 / 16))));
+            position++;
+            position %= 16;
+        
+        }
