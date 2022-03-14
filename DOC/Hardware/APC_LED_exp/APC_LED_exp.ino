@@ -4,7 +4,7 @@
 #include <avr/power.h>
 #endif
 #define PIN            12
-#define NUMPIXELS      64
+#define NUMPIXELS      70
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 byte RecByte = 0;                                       // received byte
@@ -16,10 +16,13 @@ byte Sync = 8;                                          // ms after last Sync
 byte Mode = 0;                                          // Mode 0 -> lamps being lit get the ColorSelect color / Mode 1 -> lamps keep their color / Mode 2 -> lamps set in the following frame get the new color immediately
 byte Command = 0;                                       // LED command currently being processed
 byte CommandCount = 0;                                  // counts the bytes received by the color select command
-byte OwnCommands = 0;                                   // indicate active own LED commands
+byte OwnCommands = 1;                                   // indicate active own LED commands
 byte OwnCommandStep = 0;                                // needed for own LED commands
 byte TurnOn[6][8];                                      // the list of the lamps currently being turned on
 byte TurnOff[6][8];                                     // the list of the lamps currently being turned off
+uint32_t RingColour = 0;
+uint32_t LastRingColour = 0;
+byte radar_colour_shift = 8;
 const byte OwnPattern[6][3] = {{0,0,0},{0,50,0},{0,100,0},{0,150,0},{0,200,0},{0,250,0}};
 
 void setup() {
@@ -102,13 +105,9 @@ void loop() {
               Mask = Mask << 1;}}}}
       if (!Sync && OwnCommands) {                       // a good place to let an own command run once per refresh cycle
         if (OwnCommands & 1) {                          // check which command is meant
-          if (!(OwnCommandStep % 5)) {                  // only be active every 5th refresh cycle
-            byte Step = OwnCommandStep / 5;             // calculate the current step
-            for (byte i=0;i<6;i++) {                    // pattern has 6 fading grades
-              if (Step+i < 12) {                        // it's for 12 LEDs
-                pixels.setPixelColor(Step+i,OwnPattern[i][0],OwnPattern[i][1],OwnPattern[i][2]);}
-              else {
-                pixels.setPixelColor(Step+i-12,OwnPattern[i][0],OwnPattern[i][1],OwnPattern[i][2]);}}}
+          if (!(OwnCommandStep % 2)) {                  // only be active every 5th refresh cycle
+            update_ring();
+          }
           OwnCommandStep++;
           if (OwnCommandStep > 59) {
             OwnCommandStep = 0;}}}
@@ -153,12 +152,22 @@ void loop() {
           break;
         case 101:
           OwnCommands &= 254;                           // deactivate OwnCommand number 1
-          for (byte i=0;i<12;i++) {                     // for all affected LEDs
+          
+          for (byte i=53;i<69;i++) {                     // for all affected LEDs
             pixels.setPixelColor(i, pixels.Color(0,0,0)); // turn them off
             LampStatus[i / 8] &= 255-(1<<(i % 8));}     // and change the status to off
           break;
         case 170:                                       // sync command
           Sync = 0;                                     // the next four cycles (8 bytes) represent a lamp pattern
+          if (!OwnCommands) {
+            RingColour = pixels.getPixelColor(53);      // Get the color of the first ring pixel
+            if (RingColour != LastRingColour) {
+              for (byte i=54; i<69; i++) {
+                pixels.setPixelColor(i,RingColour); // Set the rest of the ring the same
+              }
+              LastRingColour = RingColour;
+            }
+          }
           pixels.show();                                // update the LEDs
           break;
         case 192:                                       // color select command
@@ -170,3 +179,27 @@ void loop() {
           CommandCount = 1;
           break;
         }}}}}
+
+void update_ring() {  
+  static byte i,j=0,fall;
+  static byte j3;
+  static byte offset = 0;
+
+  // If the "radar" is supposed to be rotating, then load up
+  // the colours into the appropriate slots in the array
+    j+=2;
+    for(i=0; i<8; i++) {
+      fall = (i + offset) % 16;
+      pixels.setPixelColor(fall+53,(i*16-j+16) << radar_colour_shift);
+    }
+    j3 = j*3;
+    pixels.setPixelColor(++fall % 16 +53,(79+j3) << radar_colour_shift);
+    pixels.setPixelColor(++fall % 16 +53,(40+j3) << radar_colour_shift);
+    pixels.setPixelColor(++fall % 16 +53,(j3) << radar_colour_shift);
+    if (j==16)
+        {
+          j=0;
+          offset++;
+          if (offset == 16) offset=0;
+        }
+}

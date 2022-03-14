@@ -143,25 +143,33 @@ void F14_AttractLampCycle(byte Event) {                // play multiple lamp pat
       F14_LampShowPlayer(LAMP_SHOW_ROTATE,START_SHOW);
       current_show=0;
       attract_lamp_timer = ActivateTimer(10000,1,F14_AttractLampCycle);
+      F14_GIOn(255,0,0);
+      LEDhandling(6, 100);
       break;
     case 1:
       F14_LampShowPlayer(LAMP_SHOW_ROTATE,QUIT_SHOW);
       F14_LampShowPlayer(LAMP_SHOW_UPDOWN,START_SHOW);
       current_show = 1;
       attract_lamp_timer = ActivateTimer(10000,2,F14_AttractLampCycle);
+      F14_GIOn(0,255,0);
+      LEDhandling(6, 101);
       break;
     case 2:
       F14_LampShowPlayer(LAMP_SHOW_UPDOWN,QUIT_SHOW);
       F14_LampShowPlayer(LAMP_SHOW_TWINKLE,START_SHOW);
       current_show = 3;
       attract_lamp_timer = ActivateTimer(10000,0,F14_AttractLampCycle);
+      F14_GIOn(0,0,255);
+      LEDhandling(6, 100);
       break;
     case QUIT_HANDLER:
       if (attract_lamp_timer) {
         KillTimer(attract_lamp_timer);
         attract_lamp_timer = 0;
+        F14_GIOn(255,255,255);
       }    
       F14_LampShowPlayer(current_show,QUIT_SHOW);
+      LEDhandling(6, 100);
   }
 
  
@@ -2508,10 +2516,10 @@ void F14_AnimationHandler(byte Animation, byte Status) {
 
 
 void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the moment
-  LEDsetColorMode(1);
+  //LEDsetColorMode(1);
   LEDsetColor(Red, Green, Blue);
   if (F14_GI_IsOn) {
-    F14_GIChangeColour(65);
+    F14_SelectGILEDcolor(1);
   }
   else {
     for (int i=65; i < 102; i++) {
@@ -2523,12 +2531,12 @@ void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the mome
   F14_GI_IsOn = 1;
 }
 
-void F14_GIChangeColour(byte Lamp) {
-  LEDchangeColor(Lamp);
-  if (Lamp < 102) {
-    ActivateTimer(17,Lamp+1,F14_GIChangeColour);
-  }
-}
+//void F14_GIChangeColour(byte Lamp) {
+//  LEDchangeColor(Lamp);
+//  if (Lamp < 102) {
+//    ActivateTimer(17,Lamp+1,F14_GIChangeColour);
+//  }
+//}
 
 void F14_GIOff() {
   /* if (APC_settings[DebugMode]){
@@ -2538,6 +2546,27 @@ void F14_GIOff() {
   F14_GI_IsOn = 0;
 }
 
+byte LEDGIPattern[8] = {0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11111000,0b00000000,0b00000000};
+
+void F14_SelectGILEDcolor(byte State) {              // Change the color of several LEDs without turning them on
+  switch (State) {
+  case 1:                                             // step 1
+    LEDsetColorMode(4);                               // freeze LED states
+    ActivateTimer(20, 2, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
+    break;
+  case 2:                                             // step 2
+    LEDsetColorMode(3);                               // LEDs will change their color without being turned on
+    LEDpattern = LEDGIPattern;                     // apply pattern to specify which LEDs are affected
+    ActivateTimer(20, 3, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
+    break;
+  case 3:                                             // step 3
+    LEDsetColorMode(4);                               // freeze LED states
+    ActivateTimer(20, 4, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
+    break;
+  case 4:
+    LEDsetColorMode(1);                               // LEDs keep their color
+    LEDinit();                                        // switch back to normal lamp pattern
+    break;}}
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
