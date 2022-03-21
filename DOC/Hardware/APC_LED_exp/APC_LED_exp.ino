@@ -1,11 +1,13 @@
 #include "Arduino.h"
 #include <Adafruit_NeoPixel.h>
+#include <SoftwareSerial.h>
 #ifdef __AVR__
 #include <avr/power.h>
 #endif
 #define PIN            12
 #define NUMPIXELS      70
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+SoftwareSerial TFT_Slave_Serial(9,11);
 
 byte RecByte = 0;                                       // received byte
 bool RecFlag;
@@ -27,19 +29,20 @@ const byte OwnPattern[6][3] = {{0,0,0},{0,50,0},{0,100,0},{0,150,0},{0,200,0},{0
 
 void setup() {
   pixels.begin();
-  for (byte i=0;i<9;i++) {
+  for (byte i=0;i<8;i++) {
     pinMode(i, INPUT_PULLUP);}
   pinMode(12, OUTPUT);
   pinMode(13, OUTPUT);
   pinMode(10, OUTPUT);
   digitalWrite(12, LOW);
+  TFT_Slave_Serial.begin(38400);
   for (byte i=0;i<64;i++) {
     for (byte c=0;c<3;c++) {
       LampMax[i][c] = 255;}}
-  RecFlag = PINB && 1;}
+  RecFlag = digitalRead(8);}
 
 void loop() {
-  if ((PINB && 1) != RecFlag) {                         // get byte
+  if (digitalRead(8) != RecFlag) {                         // get byte
     RecByte = PIND;                                     // store it
     RecFlag = !RecFlag;
     if (Sync<8) {                                       // if the last sync happened less than 8 cycles ago
@@ -152,7 +155,6 @@ void loop() {
           break;
         case 101:
           OwnCommands &= 254;                           // deactivate OwnCommand number 1
-          
           for (byte i=53;i<69;i++) {                     // for all affected LEDs
             pixels.setPixelColor(i, pixels.Color(0,0,0)); // turn them off
             LampStatus[i / 8] &= 255-(1<<(i % 8));}     // and change the status to off
@@ -178,7 +180,11 @@ void loop() {
           Command = 195;
           CommandCount = 1;
           break;
-        }}}}}
+        }
+        if (RecByte != 170) {  // if it's a command (except sync) then let the TFT slave know
+          TFT_Slave_Serial.write((char)RecByte);
+        }
+        }}}}
 
 void update_ring() {  
   static byte i,j=0,fall;
