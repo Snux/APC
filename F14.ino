@@ -36,6 +36,7 @@ byte F14_LaunchBonus;
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
+byte gi_colour_changing=0;
 
 // When we are running a lampshow, we will temporarily "repoint" the APC lamp update code
 // to our show arrays.  In this way the regular calls to TurnOn/TurnOff/Blink etc will update
@@ -386,10 +387,10 @@ void F14_CheckForLockedBalls(byte Event) {             // check if balls are loc
     ActivateSolenoid(0,10);
   }
   if (QuerySwitch(23)) {  // Lock 2
-    ActivateTimer(1000,5,F14_ActivateSolenoid);
+    ActivateTimer(1000,5,ActA_BankSol);
   }
   if (QuerySwitch(21)) {  // Lock 3
-    ActivateTimer(1000, 7, F14_ActivateSolenoid);
+    ActivateTimer(1500, 7, ActA_BankSol);
   }
   if (QuerySwitch(24)) {
     ActivateSolenoid(0,3);
@@ -408,7 +409,7 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
 
   F14_ShowAllPoints(0);
   F14_RescueKickerHandler(START_HANDLER);                         // Light the kickback at ball start
-  F14_LockHandler(7); // reset locks back to lit instead of locked if no longer contain a ball.
+  F14_LockHandler(RESET_BACK_TO_LIT); // reset locks back to lit instead of locked if no longer contain a ball.
   F14_LockLampHandler();                                 // Lock handler reset
   F14_Multiplier = 1;
   F14_Bonus = 0;
@@ -428,8 +429,8 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
   Switch_Released = F14_CheckShooterLaneSwitch;
-  if (!QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) {
-    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);               // release ball
+  if (!QuerySwitch(5)) {
+    ActA_BankSol(8);               // release ball
     Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
     CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
   else {
@@ -445,8 +446,8 @@ if (APC_settings[DebugMode]){
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
   Switch_Released = F14_CheckShooterLaneSwitch;
-  if (!QuerySwitch(game_settings[F14set_PlungerLaneSwitch])) {
-    ActA_BankSol(game_settings[F14set_ShooterLaneFeeder]);               // release ball
+  if (!QuerySwitch(5)) {
+    ActA_BankSol(8);               // release ball
     Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
     CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
   else {
@@ -476,7 +477,7 @@ void F14_BallReleaseCheck(byte Switch) {               // handle switches during
       KillTimer(CheckReleaseTimer);
       CheckReleaseTimer = 0;}                         // stop watchdog
     Switch_Pressed = F14_ResetBallWatchdog;
-    if (Switch == game_settings[F14set_PlungerLaneSwitch]) { // ball is in the shooter lane
+    if (Switch == 5) { // ball is in the shooter lane
       Switch_Released = F14_CheckShooterLaneSwitch;}   // set mode to register when ball is shot
     else {
       if (!BallWatchdogTimer) {
@@ -949,8 +950,10 @@ void F14Show_TurnOffLamp(byte Lamp) {
 byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handler 2nd buffer
 
   switch(Command) {
-  case 3:                                             // turn on LED
-    F14_ShowLEDs[Arg / 8] |= 1<<(Arg % 8);
+  case 3:                                             // turn on LED if GI is not mid colour-change
+    if (!gi_colour_changing) {
+      F14_ShowLEDs[Arg / 8] |= 1<<(Arg % 8);
+    }
     break;
   case 4:                                             // turn off LED
     F14_ShowLEDs[Arg / 8] &= 255-(1<<(Arg % 8));
@@ -977,11 +980,11 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
   // point the buffers correctly
   switch (Arg) {
     case 0: // start - point the LED and Lamp buffers to the F14Show versions
-      LEDpattern = F14_ShowLEDs;
+      if (!gi_colour_changing) LEDpattern = F14_ShowLEDs;
       LampPattern = F14_ShowLamps;
       break;
     case 255: // stop
-      LEDinit(); 
+      if (!gi_colour_changing) LEDinit(); 
       LampPattern = LampColumns;
       break;
   }
@@ -1065,7 +1068,6 @@ if (Multiballs==1) {
           break;
       }
       
-      //F14_LockHandler(10); // beacon check
       switch (F14_LandingStatus[Player][0]) {
         case 0:
           RemoveBlinkLamp(61);  TurnOffLamp(61);
@@ -1201,35 +1203,35 @@ void F14_LockHandler(byte Event) {
   }
 
   switch (Event) {
-    case 0:  // Completed TOMCAT, need to light a lock.  SHould make this more random.
+    case ENABLE_LOCK:  // Completed TOMCAT, need to light a lock.  SHould make this more random.
       if (!locks_available)
         return;
       
       //F14_AnimationHandler(2,0);  // lock is lit animation (moved to target handler)
 
       if (F14_LockStatus[Player][0]==0) {
-        F14_LockHandler(1);
+        F14_LockHandler(LIGHT_LOCK_1);
       }
       else if (F14_LockStatus[Player][1]==0) {
-        F14_LockHandler(2);
+        F14_LockHandler(LIGHT_LOCK_2);
       }
       else {
-        F14_LockHandler(3);
+        F14_LockHandler(LIGHT_LOCK_3);
       }
       break;
-    case 1: //enable lock 1
+    case LIGHT_LOCK_1: //enable lock 1
       F14_LockStatus[Player][0] = 1;
       F14_LockLampHandler();
       break;
-    case 2: //enable lock 2
+    case LIGHT_LOCK_2: //enable lock 2
       F14_LockStatus[Player][1] = 1;
       F14_LockLampHandler();
       break;
-    case 3: //enable lock 3
+    case LIGHT_LOCK_3: //enable lock 3
       F14_LockStatus[Player][2] = 1;
       F14_LockLampHandler();
       break;
-    case 4: // Ball locked in 1
+    case LOCK_BALL_IN_1: // Ball locked in 1
       F14_LockStatus[Player][0]=2;  // set the status
       if (F14_LockOccupied[0]==0){  // if the lock didn't have a ball in, then we need to issue another one
         InLock++;
@@ -1240,7 +1242,7 @@ void F14_LockHandler(byte Event) {
       F14_AnimationHandler(ANIMATION_BALL_LOCKED ,ANIMATION_START);  // Enemy locked
       F14_LampShowPlayer(2,0);
       break;
-    case 5: // Ball locked in 2
+    case LOCK_BALL_IN_2: // Ball locked in 2
       F14_LockStatus[Player][1]=2;
       if (F14_LockOccupied[1]==0){
         InLock++;
@@ -1251,7 +1253,7 @@ void F14_LockHandler(byte Event) {
       F14_AnimationHandler(ANIMATION_BALL_LOCKED ,ANIMATION_START);  // Enemy locked
       F14_LampShowPlayer(2,0);
       break;
-    case 6: // Ball locked in 3
+    case LOCK_BALL_IN_3: // Ball locked in 3
       F14_LockStatus[Player][2]=2;
       if (F14_LockOccupied[2]==0){
         InLock++;
@@ -1265,7 +1267,7 @@ void F14_LockHandler(byte Event) {
       break;
     // if a player has a lock in place (status 2), but the lock doesn't actually contain a ball
     // then reset the status of the lock back to 1 (lock is lit)
-    case 7:
+    case RESET_BACK_TO_LIT:
       if (F14_LockStatus[Player][0] == 2 && F14_LockOccupied[0] == 0) {
         F14_LockStatus[Player][0]=1;
       }
@@ -1276,15 +1278,15 @@ void F14_LockHandler(byte Event) {
         F14_LockStatus[Player][2]=1;
       }
       break;
-    case 8:  // multiball intro
+    case MULTIBALL_INTRO:  // multiball intro
       F14_AnimationHandler(ANIMATION_START_MULTIBALL, ANIMATION_START);   // Flashing stuff, will get called back with Event 9 when done.
       break;
-    case 9:  // start multiball
+    case START_MULTIBALL:  // start multiball
       Multiballs = 4; // There will be 4 on the playfield
       InLock = 0; // and none in the locks
       ActivateSolenoid(0,10);  // Clear lock 1
-      ActivateTimer(1000,5,F14_ActivateSolenoid);  // do lock 2 in 1 second
-      ActivateTimer(1200,7, F14_ActivateSolenoid); // and lock 3 shortly after
+      ActivateTimer(1000,5,ActA_BankSol);  // do lock 2 in 1 second
+      ActivateTimer(1200,7, ActA_BankSol); // and lock 3 shortly after
       ActivateTimer(2000,VUK_EJECT,F14_vUKHandler); // Then the vUK can clear the ball there
       F14_LocksClearing=1; // make a note that we are clearing locks
       for (byte i=0; i< 3; i++ ) { // reset status of locks
@@ -1293,28 +1295,28 @@ void F14_LockHandler(byte Event) {
       }
       F14_LockLampHandler();  // update the lamps
       break;
-    case 30:  // lower ramp
+    case LOWER_RAMP_ACTIVE:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
         ActA_BankSol(7);
         F14_LockOccupied[2] = 2;  // Let the lock handler know we're expecting a replacement ball
       }
       break;
   
-    case 31:  // middle ramp
+    case MIDDLE_RAMP_ACTIVE:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
         ActivateSolenoid(0, 10);
         F14_LockOccupied[0] = 2; // Let the lock handler know we're expecting a replacement ball
       }
       ReleaseSolenoid (22);  // Can also release the divertor coil early
       break;
-    case 32:  // upper ramp
+    case UPPER_RAMP_ACTIVE:  // upper ramp
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
         ActA_BankSol(5);
         F14_LockOccupied[1] = 2; // Let the lock handler know we're expecting a replacement ball
       }
       ReleaseSolenoid (21);  // Can also release the divertor coil early
       break;
-    case 22: // Lock number 1
+    case BALL_ARRIVED_LOCK_1: // Lock number 1
       if (Multiballs==1) { // single ball play
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
@@ -1330,7 +1332,7 @@ void F14_LockHandler(byte Event) {
             
             break;
           case 1:
-            F14_LockHandler(4);  // If lit, lock the ball
+            F14_LockHandler(LOCK_BALL_IN_1);  // If lit, lock the ball
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
             break;
@@ -1341,7 +1343,7 @@ void F14_LockHandler(byte Event) {
         }
       
       break;
-    case 23: // Lock number 2
+    case BALL_ARRIVED_LOCK_2: // Lock number 2
       if (Multiballs==1) {
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
@@ -1353,11 +1355,10 @@ void F14_LockHandler(byte Event) {
         }
         switch (F14_LockStatus[Player][1]) {
           case 0:
-            ActivateTimer(1000,5,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
-            //ActA_BankSol(5);
+            ActivateTimer(1000,5,ActA_BankSol);  // if not lit or locked, kick the ball out
             break;
           case 1:
-            F14_LockHandler(5);
+            F14_LockHandler(LOCK_BALL_IN_2);
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
             break;
@@ -1367,7 +1368,7 @@ void F14_LockHandler(byte Event) {
         F14_LandingHandler(1);
       }
       break;
-    case 21: // Lock number 3
+    case BALL_ARRIVED_LOCK_3: // Lock number 3
       if (Multiballs==1) {
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
@@ -1380,11 +1381,11 @@ void F14_LockHandler(byte Event) {
         }
         switch (F14_LockStatus[Player][2]) {
           case 0:
-            ActivateTimer(1000,7,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
+            ActivateTimer(1000,7,ActA_BankSol);  // if not lit or locked, kick the ball out
             //ActA_BankSol(7);
             break;
           case 1:
-            F14_LockHandler(6);
+            F14_LockHandler(LOCK_BALL_IN_3);
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
             break;
@@ -1488,10 +1489,10 @@ byte landing_count=0;
       ActivateTimer(1000,10,F14_ActivateSolenoid);
       break;
     case 1:
-      ActivateTimer(1000,5,F14_ActivateSolenoid);
+      ActivateTimer(1000,5,ActA_BankSol);
       break;
     case 2:
-      ActivateTimer(1000,7,F14_ActivateSolenoid);
+      ActivateTimer(1000,7,ActA_BankSol);
       break;
   }
 
@@ -1999,10 +2000,10 @@ void F14_TomcatTargetHandler(byte Target) {
           F14_TomcatTargets[Player][j]=0;}
         if (Multiballs==1) { // not during multiball
           F14_AnimationHandler(ANIMATION_LOCK_IS_LIT, ANIMATION_START);
-          F14_LockHandler(0); // Tell the lock handler we can light another lock
+          F14_LockHandler(ENABLE_LOCK); // Tell the lock handler we can light another lock
           F14_TomcatsCompleted[Player] += 1;
           if (F14_TomcatsCompleted[Player] == 1) {
-            F14_LockHandler(0);  // for the first completion only, light another lock
+            F14_LockHandler(ENABLE_LOCK);  // for the first completion only, light another lock
           }
         }
       }
@@ -2441,7 +2442,7 @@ void F14_vUKHandler(byte Event) {
           F14_AnimationHandler(ANIMATION_WEAPONS,ANIMATION_START); // WEAPONS SYSTEMS etc.  Will call back to vuk handler when done.
         }
         else if (multiball_to_start) {
-          F14_LockHandler(8);
+          F14_LockHandler(MULTIBALL_INTRO);
           
           
         }
@@ -2496,7 +2497,7 @@ void F14_AnimationHandler(byte Animation, byte Status) {
         F14_MultiBallAnimation(ANIMATION_START);
       }
       else {
-        F14_LockHandler(9); // tell the lock handler we're ready to go!
+        F14_LockHandler(START_MULTIBALL); // tell the lock handler we're ready to go!
       }
       break;
     case ANIMATION_LAUNCH_BONUS:
@@ -2515,40 +2516,48 @@ void F14_AnimationHandler(byte Animation, byte Status) {
 
 
 
-void F14_GIOn(byte Red, byte Green, byte Blue) {  // Colour not used at the moment
-  //LEDsetColorMode(1);
-  LEDsetColor(Red, Green, Blue);
-  if (F14_GI_IsOn) {
+//     ___________  _____________     
+//    / __<  / / / / ___/  _/ __ \___ 
+//   / _/ / /_  _// (_ // // /_/ / _ \
+//  /_/  /_/ /_/__\___/___/\____/_//_/
+//            /___/                   
+//
+// Switch on the GI, using the supplied colours
+void F14_GIOn(byte Red, byte Green, byte Blue) {  
+  
+  if (F14_GI_IsOn) {  // If the GI is already on, call a routine to change the colour
+    gi_colour_changing = 1;
+    LEDsetColor(Red, Green, Blue);
     F14_SelectGILEDcolor(1);
   }
-  else {
+  else {  // else just turn them on
     for (int i=65; i < 102; i++) {
       TurnOnLamp(i);
       F14Show_TurnOnLamp(i);}
-    //TurnOnLamp(115);
-  }    
+    }    
   
   F14_GI_IsOn = 1;
+  
 }
 
-//void F14_GIChangeColour(byte Lamp) {
-//  LEDchangeColor(Lamp);
-//  if (Lamp < 102) {
-//    ActivateTimer(17,Lamp+1,F14_GIChangeColour);
-//  }
-//}
-
 void F14_GIOff() {
-  /* if (APC_settings[DebugMode]){
-    Serial.println("GI Off");
-  }*/
   for (int i=65; i < 102; i++) {TurnOffLamp(i);}
   F14_GI_IsOn = 0;
 }
 
+
+//     ___________   ____    __        __  ___________   _______           __        
+//    / __<  / / /  / __/__ / /__ ____/ /_/ ___/  _/ /  / __/ _ \_______  / /__  ____
+//   / _/ / /_  _/ _\ \/ -_) / -_) __/ __/ (_ // // /__/ _// // / __/ _ \/ / _ \/ __/
+//  /_/  /_/ /_/__/___/\__/_/\__/\__/\__/\___/___/____/___/____/\__/\___/_/\___/_/   
+//            /___/                                                                  
+//
+// Change all the GI lamps to the current LEDsetColor
+//
+// Pattern to cover the first 37 LEDs which account for the GI.
 byte LEDGIPattern[8] = {0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11111000,0b00000000,0b00000000};
 
-void F14_SelectGILEDcolor(byte State) {              // Change the color of several LEDs without turning them on
+void F14_SelectGILEDcolor(byte State) {              // Change the color of several LEDs 
   switch (State) {
   case 1:                                             // step 1
     LEDsetColorMode(4);                               // freeze LED states
@@ -2556,6 +2565,7 @@ void F14_SelectGILEDcolor(byte State) {              // Change the color of seve
     break;
   case 2:                                             // step 2
     LEDsetColorMode(3);                               // LEDs will change their color without being turned on
+    apc_LEDStatus = LEDpattern;
     LEDpattern = LEDGIPattern;                     // apply pattern to specify which LEDs are affected
     ActivateTimer(20, 3, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
     break;
@@ -2564,8 +2574,15 @@ void F14_SelectGILEDcolor(byte State) {              // Change the color of seve
     ActivateTimer(20, 4, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
     break;
   case 4:
-    LEDsetColorMode(1);                               // LEDs keep their color
-    LEDinit();                                        // switch back to normal lamp pattern
+    LEDsetColor(255,255,255);
+    LEDsetColorMode(0);                               // LEDs keep their color
+    ActivateTimer(20, 5, F14_SelectGILEDcolor);
+    break;
+  case 5:
+    LEDpattern = apc_LEDStatus;
+    gi_colour_changing = 0;
+    
+    //LEDinit();                                        // switch back to normal lamp pattern
     break;}}
 
 void F14_ClearOuthole(byte Event) {
