@@ -7,7 +7,7 @@
 #define PIN            12
 #define NUMPIXELS      70
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
-SoftwareSerial TFT_Slave_Serial(9,11);
+SoftwareSerial TFT_Slave_Serial(9,11);  // connection to TFT slave - RX pin 9, TX pin 11
 
 byte RecByte = 0;                                       // received byte
 bool RecFlag;

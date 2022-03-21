@@ -1067,7 +1067,11 @@ if (Multiballs==1) {
           RemoveBlinkLamp(59); TurnOnLamp(59);
           break;
       }
-      
+      LEDhandling(6, 200);
+      LEDhandling(6,F14_LockStatus[Player][0]+200);
+      LEDhandling(6,F14_LockStatus[Player][1]+200);
+      LEDhandling(6,F14_LockStatus[Player][2]+200);
+      LEDhandling(7,4);
       switch (F14_LandingStatus[Player][0]) {
         case 0:
           RemoveBlinkLamp(61);  TurnOffLamp(61);
