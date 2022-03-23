@@ -14,6 +14,7 @@ bool RecFlag;
 byte LampStatus[8];                                     // current status of each lamp
 byte LampMax[64][3];                                    // current max color values of each lamp
 byte LampMaxSel[3] = {255, 255, 255};                   // selected max color values
+byte GI_Colour[3];                                      // colour of the GI
 byte Sync = 8;                                          // ms after last Sync
 byte Mode = 0;                                          // Mode 0 -> lamps being lit get the ColorSelect color / Mode 1 -> lamps keep their color / Mode 2 -> lamps set in the following frame get the new color immediately
 byte Command = 0;                                       // LED command currently being processed
@@ -119,6 +120,14 @@ void loop() {
       if (CommandCount) {                               // still bytes to read for this command
         CommandCount--;
         switch (Command) {
+        case 102:
+          GI_Colour[2-CommandCount] = RecByte;
+          if (!CommandCount) { // last byte received, switch the pixels
+            for (int i=0; i<37; i++) {
+              pixels.setPixelColor(i,GI_Colour[0],GI_Colour[1],GI_Colour[2]);
+            }
+          }
+          break;
         case 192:                                       // color select command
           LampMaxSel[2-CommandCount] = RecByte;
           break;
@@ -158,6 +167,10 @@ void loop() {
           for (byte i=53;i<69;i++) {                     // for all affected LEDs
             pixels.setPixelColor(i, pixels.Color(0,0,0)); // turn them off
             LampStatus[i / 8] &= 255-(1<<(i % 8));}     // and change the status to off
+          break;
+        case 102: // change GI colour
+          Command = 102;
+          CommandCount = 3;  // R, G, B
           break;
         case 170:                                       // sync command
           Sync = 0;                                     // the next four cycles (8 bytes) represent a lamp pattern

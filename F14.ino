@@ -55,7 +55,7 @@ bool lamp_show_running=false; // If we are running a lampshow of some kind, this
 
 
 const byte F14_SearchCoils[15] = {1,3,5,7,10,13,20,0}; // coils to fire when the ball watchdog timer runs out - has to end with a zero
-unsigned int F14_SolTimes[32] = {30,50,50,50,50,50,30,50,50,50,50,50,50,50,50,0,50,50,50,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
+unsigned int F14_SolTimes[32] = {30,50,50,50,50,50,30,50,50,50,50,50,50,50,50,0,50,50,200,50,50,50,0,0,100,100,100,100,100,100,100,100}; // Activation times for solenoids
 
 
 #define F14set_OutholeSwitch 0
@@ -176,6 +176,15 @@ void F14_AttractLampCycle(byte Event) {                // play multiple lamp pat
  
  }                               
  
+void F14_LEDInit(byte dummy) {
+  UNUSED(dummy);
+  LEDinit();
+}
+
+void F14_ShowLEDPattern(byte dummy) {
+  UNUSED(dummy);
+  LEDpattern = F14_ShowLEDs;
+}
 
 void F14_AttractDisplayCycle(byte Step) {
   static byte Timer0 = 0;
@@ -310,7 +319,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       Settings_Enter();}
     break;
   case 3:                                             // start game
-    if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(game_settings[F14set_PlungerLaneSwitch]))) { // Ball missing?
+    if (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls] || (F14_CountBallsInTrunk() == game_settings[F14set_InstalledBalls]-1 && QuerySwitch(16))) { // Ball missing?
       Switch_Pressed = DummyProcess;                  // Switches do nothing
       F14_AttractDisplayCycle(0);
       if (APC_settings[Volume]) {                     // system set to digital volume control?
@@ -429,8 +438,8 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
   Switch_Released = F14_CheckShooterLaneSwitch;
-  if (!QuerySwitch(5)) {
-    ActA_BankSol(8);               // release ball
+  if (!QuerySwitch(16)) {
+    ActA_BankSol(2);               // release ball
     Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
     CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
   else {
@@ -446,8 +455,8 @@ if (APC_settings[DebugMode]){
     *(DisplayUpper+16) = LeftCredit[32 + 2 * Ball];}  // show current ball in left credit
   BlinkScore(1);                                      // start score blinking
   Switch_Released = F14_CheckShooterLaneSwitch;
-  if (!QuerySwitch(5)) {
-    ActA_BankSol(8);               // release ball
+  if (!QuerySwitch(16)) {
+    ActA_BankSol(2);               // release ball
     Switch_Pressed = F14_BallReleaseCheck;             // set switch check to enter game
     CheckReleaseTimer = ActivateTimer(5000, Balls-1, F14_CheckReleasedBall);} // start release watchdog
   else {
@@ -477,7 +486,8 @@ void F14_BallReleaseCheck(byte Switch) {               // handle switches during
       KillTimer(CheckReleaseTimer);
       CheckReleaseTimer = 0;}                         // stop watchdog
     Switch_Pressed = F14_ResetBallWatchdog;
-    if (Switch == 5) { // ball is in the shooter lane
+    if (Switch == 16) { // ball is in the shooter lane
+      //ActivateTimer(500,19,F14_ActivateSolenoid); // autolaunch
       Switch_Released = F14_CheckShooterLaneSwitch;}   // set mode to register when ball is shot
     else {
       if (!BallWatchdogTimer) {
@@ -980,11 +990,11 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
   // point the buffers correctly
   switch (Arg) {
     case 0: // start - point the LED and Lamp buffers to the F14Show versions
-      if (!gi_colour_changing) LEDpattern = F14_ShowLEDs;
+      LEDpattern = F14_ShowLEDs;
       LampPattern = F14_ShowLamps;
       break;
     case 255: // stop
-      if (!gi_colour_changing) LEDinit(); 
+      LEDinit(); 
       LampPattern = LampColumns;
       break;
   }
@@ -1067,11 +1077,11 @@ if (Multiballs==1) {
           RemoveBlinkLamp(59); TurnOnLamp(59);
           break;
       }
-      LEDhandling(6, 200);
-      LEDhandling(6,F14_LockStatus[Player][0]+200);
-      LEDhandling(6,F14_LockStatus[Player][1]+200);
-      LEDhandling(6,F14_LockStatus[Player][2]+200);
-      LEDhandling(7,4);
+      //LEDhandling(6, 200);
+      //LEDhandling(6,F14_LockStatus[Player][0]+200);
+      //LEDhandling(6,F14_LockStatus[Player][1]+200);
+      //LEDhandling(6,F14_LockStatus[Player][2]+200);
+      //LEDhandling(7,4);
       switch (F14_LandingStatus[Player][0]) {
         case 0:
           RemoveBlinkLamp(61);  TurnOffLamp(61);
@@ -2529,16 +2539,17 @@ void F14_AnimationHandler(byte Animation, byte Status) {
 // Switch on the GI, using the supplied colours
 void F14_GIOn(byte Red, byte Green, byte Blue) {  
   
-  if (F14_GI_IsOn) {  // If the GI is already on, call a routine to change the colour
-    gi_colour_changing = 1;
-    LEDsetColor(Red, Green, Blue);
-    F14_SelectGILEDcolor(1);
-  }
-  else {  // else just turn them on
+  LEDhandling(6,102);
+  LEDhandling(6,Red);
+  LEDhandling(6,Green);
+  LEDhandling(6,Blue);
+  LEDhandling(7,4);
+  if (!F14_GI_IsOn) {  // If the GI is already on, call a routine to change the colour
     for (int i=65; i < 102; i++) {
       TurnOnLamp(i);
-      F14Show_TurnOnLamp(i);}
-    }    
+      F14Show_TurnOnLamp(i);
+    }
+  }
   
   F14_GI_IsOn = 1;
   
@@ -2550,44 +2561,6 @@ void F14_GIOff() {
 }
 
 
-//     ___________   ____    __        __  ___________   _______           __        
-//    / __<  / / /  / __/__ / /__ ____/ /_/ ___/  _/ /  / __/ _ \_______  / /__  ____
-//   / _/ / /_  _/ _\ \/ -_) / -_) __/ __/ (_ // // /__/ _// // / __/ _ \/ / _ \/ __/
-//  /_/  /_/ /_/__/___/\__/_/\__/\__/\__/\___/___/____/___/____/\__/\___/_/\___/_/   
-//            /___/                                                                  
-//
-// Change all the GI lamps to the current LEDsetColor
-//
-// Pattern to cover the first 37 LEDs which account for the GI.
-byte LEDGIPattern[8] = {0b11111111,0b11111111,0b11111111,0b11111111,0b11111111,0b11111000,0b00000000,0b00000000};
-
-void F14_SelectGILEDcolor(byte State) {              // Change the color of several LEDs 
-  switch (State) {
-  case 1:                                             // step 1
-    LEDsetColorMode(4);                               // freeze LED states
-    ActivateTimer(20, 2, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
-    break;
-  case 2:                                             // step 2
-    LEDsetColorMode(3);                               // LEDs will change their color without being turned on
-    apc_LEDStatus = LEDpattern;
-    LEDpattern = LEDGIPattern;                     // apply pattern to specify which LEDs are affected
-    ActivateTimer(20, 3, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
-    break;
-  case 3:                                             // step 3
-    LEDsetColorMode(4);                               // freeze LED states
-    ActivateTimer(20, 4, F14_SelectGILEDcolor);      // wait 20ms for the refresh cycle to end
-    break;
-  case 4:
-    LEDsetColor(255,255,255);
-    LEDsetColorMode(0);                               // LEDs keep their color
-    ActivateTimer(20, 5, F14_SelectGILEDcolor);
-    break;
-  case 5:
-    LEDpattern = apc_LEDStatus;
-    gi_colour_changing = 0;
-    
-    //LEDinit();                                        // switch back to normal lamp pattern
-    break;}}
 
 void F14_ClearOuthole(byte Event) {
   UNUSED(Event);
