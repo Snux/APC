@@ -1301,13 +1301,9 @@ void F14_LockHandler(byte Event) {
       ActivateSolenoid(0,10);  // Clear lock 1
       ActivateTimer(1000,5,ActA_BankSol);  // do lock 2 in 1 second
       ActivateTimer(1200,7, ActA_BankSol); // and lock 3 shortly after
+      ActivateTimer(2100,0,F14_ClearLocks);
       ActivateTimer(2000,VUK_EJECT,F14_vUKHandler); // Then the vUK can clear the ball there
       F14_LocksClearing=1; // make a note that we are clearing locks
-      for (byte i=0; i< 3; i++ ) { // reset status of locks
-        F14_LockStatus[Player][i]=0;
-        F14_LockOccupied[i]=0;
-      }
-      F14_LockLampHandler();  // update the lamps
       break;
     case LOWER_RAMP_ACTIVE:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
@@ -1494,7 +1490,9 @@ byte landing_count=0;
     F14_LockLampHandler();
   }
   else {
-    F14_LocksClearing = 0;  // locks are now cleared.
+    if (!F14_LockOccupied[Lock]) {
+      F14_LocksClearing = 0;  // locks are now cleared.
+    }
   }
 
   // Kick the ball back out
@@ -1525,7 +1523,20 @@ byte landing_count=0;
 
 }
 
+// This is to cover an annoying edge case.  In my F14 when one of the central locks
+// is ejected it sometimes activates the switch next door.  This routine is called
+// after all the locks are emptied, then we reset the flags.
+void F14_ClearLocks(byte dummy) {
+  UNUSED(dummy);
 
+      for (byte i=0; i< 3; i++ ) { // reset status of locks
+        F14_LockStatus[Player][i]=0;
+        F14_LockOccupied[i]=0;
+      }
+      F14_LockLampHandler();  // update the lamps
+
+
+}
 //     ___________   ___                     __ __             ____       
 //    / __<  / / /  / _ )___  ___  __ _____ / // /__ ____  ___/ / /__ ____
 //   / _/ / /_  _/ / _  / _ \/ _ \/ // (_-</ _  / _ `/ _ \/ _  / / -_) __/
@@ -1610,6 +1621,8 @@ void F14_LineOfDeathHandler(byte Event) {
 
   static int kill_step = 0;
   static int kill_loop = 0;
+
+
   switch (Event){
     case LINE_OF_DEATH_HIT:
       ActivateSolenoid(0, 12);  // fall through to case 1 is correct in this case
@@ -2769,12 +2782,13 @@ void F14_AwardBonus (byte Event) {
       break;
       
     case 10:
-      DisplayScore(1, Points[Player]);
-      DisplayScore(2, total_bonus);
       if (total_bonus==0) {
         Event = 11;  // jump out once countdown complete
         break;
       }
+      DisplayScore(1, Points[Player]);
+      DisplayScore(2, total_bonus);
+
       if (F14_Bonus == 0) {
         F14_Bonus = temp_bonus;
         F14_Multiplier  --;
@@ -3607,7 +3621,7 @@ static byte display_step_timer = 0;
   if (Event > 6) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
+    //F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_LaunchBonusAnimation);
@@ -3659,7 +3673,7 @@ static byte display_step_timer = 0;
   if (Event > 6) {
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
-    F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
+    F14_AnimationHandler(ANIMATION_SAFE_LANDING,ANIMATION_END); // let the handler know animation is done.
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_SafeLandingAnimation);
