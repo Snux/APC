@@ -26,6 +26,7 @@ const byte ANIMATION_LOCK_IS_LIT = 2;
 const byte ANIMATION_START_MULTIBALL = 3;
 const byte ANIMATION_LAUNCH_BONUS = 4;
 const byte ANIMATION_SAFE_LANDING = 5;
+const byte ANIMATION_BALL_SAVED = 6;
 const byte ANIMATION_START = 0;
 const byte ANIMATION_END = 1;
 
@@ -89,3 +90,7 @@ const byte UPPER_RAMP_ACTIVE = 32;
 const byte BALL_ARRIVED_LOCK_1 = 22;
 const byte BALL_ARRIVED_LOCK_2 = 23;
 const byte BALL_ARRIVED_LOCK_3 = 21;
+
+const byte BALL_SAVE_OFF = 0;
+const byte BALL_SAVE_ON = 1;
+const byte BALL_SAVE_ACTIVATE = 2;
