@@ -32,6 +32,7 @@ byte F14_YagovKills[5];  // tracks how many times we killed Yagov
 byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
 byte F14_TomcatsCompleted[5]; // how many times has the player completed T-O-M-C-A-T
 byte skip_next_lock; // flag to indicate if locks are still being cleared out for multiball
+byte ball_save_active=0;  // if a ball drains with this set, it's just served again.
 byte F14_LaunchBonus;
 byte F14_Bonus;
 byte F14_Multiplier;
@@ -412,6 +413,30 @@ void F14_ActivateSolenoid (byte Coil) {
   ActivateSolenoid(0,Coil);
 }
 
+void F14_BallSave(byte Event) {
+
+  if (APC_settings[DebugMode]){
+    Serial.print("F14_BallSave with event ");           
+    Serial.println((byte) Event);
+  }
+  switch (Event) {
+    case BALL_SAVE_OFF:
+      ball_save_active = 0;
+      TurnOffLamp(16);
+      break;
+    case BALL_SAVE_ON:
+      ball_save_active = 1;
+      TurnOnLamp(16);
+      break;
+    case BALL_SAVE_ACTIVATE:
+      F14_GiveBall(1);
+      F14_AnimationHandler(ANIMATION_BALL_SAVED, ANIMATION_START);
+      ball_save_active=0;
+      TurnOffLamp(16);
+      break;
+  }
+}
+
 void F14_NewBall(byte Balls) {                         // release ball (Event = expected balls on ramp)
   if (APC_settings[DebugMode]){
     Serial.println("F14_NewBall");            // print address reference table
@@ -422,6 +447,7 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_LockHandler(RESET_BACK_TO_LIT); // reset locks back to lit instead of locked if no longer contain a ball.
   F14_LockLampHandler();                                 // Lock handler reset
   F14_Multiplier = 1;
+  ball_save_active = 0;
   F14_Bonus = 0;
   ExBalls = 0;
   F14_BonusHandler(BONUS_LAMP_REFRESH);                                // Reset bonus lamps
@@ -431,6 +457,7 @@ void F14_NewBall(byte Balls) {                         // release ball (Event = 
   F14_LineOfDeathHandler(RESET_KILL_LAMPS);
   F14_SpinnerHandler(SPINNER_RESET);
   F14_OrbitHandler(ORBIT_RESET);
+  F14_BallSave(BALL_SAVE_OFF);
   F14_LaunchBonusHandler(LAUNCH_BONUS_RESET);
   PlayMusic(50, "1_02.snd");                      // play music track
   QueueNextMusic("1_02.snd");  //loop it
@@ -1678,6 +1705,8 @@ void F14_LineOfDeathHandler(byte Event) {
 
   switch (Event){
     case LINE_OF_DEATH_HIT:
+      F14_BallSave(BALL_SAVE_ON);
+      ActivateTimer(4000, BALL_SAVE_OFF, F14_BallSave);
       ActivateSolenoid(0, 12);  // fall through to case 1 is correct in this case
     case AWARD_KILL: 
       if (F14_ExtraBallLit[Player]) {
@@ -2593,6 +2622,11 @@ void F14_AnimationHandler(byte Animation, byte Status) {
         F14_SafeLandingAnimation(ANIMATION_START);
       }
       break;
+    case ANIMATION_BALL_SAVED:
+      if (Status == ANIMATION_START) {
+        F14_BallSavedAnimation(ANIMATION_START);
+      }
+      break;
   }
 }
 
@@ -2645,6 +2679,15 @@ void F14_HandleLock(byte Balls) {
 }
 
 void F14_BallEnd(byte Event) {
+  if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
+    Serial.println("F14_BallEnd");
+    Serial.print("- Multiballs = ");
+    Serial.println((byte)Multiballs);
+    Serial.print("- Ball save ");
+    Serial.println((byte)ball_save_active);
+
+  }
+
   byte BallsInTrunk = F14_CountBallsInTrunk();
   if ((BallsInTrunk == 5)||(BallsInTrunk < 4+1-Multiballs-InLock)) {
     InLock = 0;
@@ -2664,7 +2707,10 @@ void F14_BallEnd(byte Event) {
         BlockOuthole = false;
         Event = 0;
         F14_ClearOuthole(0);}}}
-  else {
+  else if (ball_save_active) {
+    F14_BallSave(BALL_SAVE_ACTIVATE);
+    }
+  else  {
     switch (Multiballs) {
     case 4:                                           // goto 3 ball multiball
       Multiballs = 3;
@@ -3623,6 +3669,56 @@ void F14_MultiBallAnimation(byte Event) {
 
 }
 
+void F14_BallSavedAnimation(byte Event){
+static byte display_step_timer = 0;
+
+  /*if (APC_settings[DebugMode]){
+    Serial.print("F14_LaunchBonusAnimation event ");            // print address reference table
+    Serial.println((byte)Event);
+  }*/
+
+  switch (Event) {
+    case 0:
+      if (display_step_timer) {
+        KillTimer(display_step_timer);
+        display_step_timer = 0;
+      }
+
+      WriteUpper2("              ");
+      WriteLower2("              ");
+      SwitchDisplay(0); // buffer 2
+      break;
+    case 1:
+      WriteUpper2(" BALL  SAVED  ");
+      break;
+    case 2:
+      WriteUpper2("              ");
+      break;
+    case 3:
+      WriteUpper2(" BALL  SAVED  ");
+      break;
+    case 4:
+      WriteUpper2("              ");
+      break;
+    case 5:
+      WriteUpper2(" BALL  SAVED  ");
+      break;
+    case 6:
+      WriteUpper2("              ");
+      break;
+   
+  }
+
+  if (Event > 6) {
+    display_step_timer = 0;
+    SwitchDisplay(1);  // back to the old display
+  }
+  else {
+    display_step_timer = ActivateTimer(250,Event+1,F14_BallSavedAnimation);
+  }
+
+}
+
 void F14_LaunchBonusAnimation(byte Event){
 static byte display_step_timer = 0;
 
@@ -3643,8 +3739,8 @@ static byte display_step_timer = 0;
       SwitchDisplay(0); // buffer 2
       break;
     case 1:
-      WriteUpper2(" LAUNCHBONUS ");
-      WriteLower2("             ");
+      WriteUpper2(" LAUNCHBONUS  ");
+      WriteLower2("              ");
       ShowNumber(30,F14_LaunchBonus*10000);
       ShowNumber(22,F14_LaunchBonus*10000);
       break;
