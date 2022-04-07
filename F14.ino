@@ -31,12 +31,13 @@ byte F14_LandingStatus[5][3]; // Track status of multiball progress towards figh
 byte F14_YagovKills[5];  // tracks how many times we killed Yagov
 byte F14_ExtraBallLit[5]; // is the extra ball lit for player?
 byte F14_TomcatsCompleted[5]; // how many times has the player completed T-O-M-C-A-T
-byte F14_LocksClearing; // flag to indicate if locks are still being cleared out for multiball
+byte skip_next_lock; // flag to indicate if locks are still being cleared out for multiball
 byte F14_LaunchBonus;
 byte F14_Bonus;
 byte F14_Multiplier;
 byte F14_GI_IsOn = 0;
 byte gi_colour_changing=0;
+byte ignoreSwitch[64];
 
 // When we are running a lampshow, we will temporarily "repoint" the APC lamp update code
 // to our show arrays.  In this way the regular calls to TurnOn/TurnOff/Blink etc will update
@@ -358,7 +359,7 @@ void F14_AttractModeSW(byte Button) {                  // Attract Mode switch be
       F14_LockOccupied[0] = 0;  //no ball physically in any of the locks
       F14_LockOccupied[1] = 0;
       F14_LockOccupied[2] = 0;
-      F14_LocksClearing = 0; 
+      skip_next_lock = 0; 
       F14_LineOfDeathHandler(RESET_KILL_LAMPS);  // sort the kill lamps out
       F14_RescueTargetHandler(START_HANDLER); // start the rescue target flip/flop
       F14_1to6Handler(1);       // start the 1-6 lamps
@@ -654,6 +655,15 @@ void F14_CheckReleasedBall(byte Balls) {               // ball release watchdog
         ActA_BankSol(2);}}} // release again
   CheckReleaseTimer = ActivateTimer(5000, Balls, F14_CheckReleasedBall);}
 
+void F14_BlockSwitch(byte Switch, unsigned int Duration) {
+  if (!ignoreSwitch[Switch]) {
+    ignoreSwitch[Switch] =  ActivateTimer(Duration,Switch,F14_UnblockSwitch);
+  }
+}
+
+void F14_UnblockSwitch(byte Switch) {
+  ignoreSwitch[Switch] = 0;
+}
 
 //     ___________  _____               __  ___     _    
 //    / __<  / / / / ___/__ ___ _  ___ /  |/  /__ _(_)__ 
@@ -672,7 +682,7 @@ void F14_GameMain(byte Event) {                        // game switch events
   // Debounce the switches - only pass on a switch event if it hasn't
   // activated in the previous 200ms
   time_now=millis();
-  if (time_now - prev_switch_hit[Event] > 200) {
+  if ((time_now - prev_switch_hit[Event] > 200) && !ignoreSwitch[Event]) {
     prev_switch_hit[Event] = time_now;
   }
   else {
@@ -781,7 +791,7 @@ void F14_GameMain(byte Event) {                        // game switch events
     break;
   case 59: // left inlane
     F14_OrbitHandler(ORBIT_LIGHT_RIGHT_SIDE_BONUS);  // light the right bonus x lane
-    F14_LaunchBonusHandler(LAUNCH_BONUS_SCORE); // launch bonus
+    F14_LaunchBonusHandler(START_HANDLER); // launch bonus
     F14_BonusHandler(0); // increment end of ball bonus
     if (F14_YagovKills[Player]==0) {  // if the inlane 'lite kill' are active, tell the handler
       F14_CentreKillHandler(0);
@@ -987,6 +997,12 @@ byte F14_ShowLEDhandling(byte Command, byte Arg) {            // main LED handle
 // Arg - 0 to start the show, 255 to stop it
 void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
 
+  if (APC_settings[DebugMode]) {
+    Serial.print("F14_LampShowPlayer with show ");
+    Serial.print((byte) ShowNumber);
+    Serial.print(" and arg ");
+    Serial.println((byte) Arg);
+  }
   // point the buffers correctly
   switch (Arg) {
     case 0: // start - point the LED and Lamp buffers to the F14Show versions
@@ -1000,7 +1016,7 @@ void F14_LampShowPlayer(byte ShowNumber, byte Arg) {
   }
   // call the lamp show player
   switch (ShowNumber) {
-    case 0:
+    case LAMP_SHOW_ROTATE:
       F14_LampShowRotate(Arg);  // rotating wheel lamp show
       break;
     case 1:
@@ -1303,17 +1319,20 @@ void F14_LockHandler(byte Event) {
       ActivateTimer(1200,7, ActA_BankSol); // and lock 3 shortly after
       ActivateTimer(2100,0,F14_ClearLocks);
       ActivateTimer(2000,VUK_EJECT,F14_vUKHandler); // Then the vUK can clear the ball there
-      F14_LocksClearing=1; // make a note that we are clearing locks
+      skip_next_lock=1; // make a note that we are clearing locks
       break;
     case LOWER_RAMP_ACTIVE:  // lower ramp
       if (QuerySwitch(21)) {  // If the lock has a ball in, we need to kick it out
+        F14_BlockSwitch(21,200); // briefly ignore the lock switch
         ActA_BankSol(7);
+        
         F14_LockOccupied[2] = 2;  // Let the lock handler know we're expecting a replacement ball
       }
       break;
   
     case MIDDLE_RAMP_ACTIVE:  // middle ramp
       if (QuerySwitch(22)) {  // If the lock has a ball in, we need to kick it out
+        F14_BlockSwitch(22,200);
         ActivateSolenoid(0, 10);
         F14_LockOccupied[0] = 2; // Let the lock handler know we're expecting a replacement ball
       }
@@ -1321,13 +1340,16 @@ void F14_LockHandler(byte Event) {
       break;
     case UPPER_RAMP_ACTIVE:  // upper ramp
       if (QuerySwitch(23)) {  // If the lock has a ball in, we need to kick it out
+        F14_BlockSwitch(23,200);
         ActA_BankSol(5);
         F14_LockOccupied[1] = 2; // Let the lock handler know we're expecting a replacement ball
       }
       ReleaseSolenoid (21);  // Can also release the divertor coil early
       break;
     case BALL_ARRIVED_LOCK_1: // Lock number 1
+      Serial.println(" * arrived in lock 1");
       if (Multiballs==1) { // single ball play
+        Serial.println(" * single ball play");
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[0]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[0]=1;
@@ -1338,13 +1360,16 @@ void F14_LockHandler(byte Event) {
         }
         switch (F14_LockStatus[Player][0]) {  // check the lock status
           case 0:
+            F14_BlockSwitch(BALL_ARRIVED_LOCK_1,1200);  // block the switch until shortly after eject
             ActivateTimer(1000,10,F14_ActivateSolenoid);  // if not lit or locked, kick the ball out
-            
+            Serial.println(" * kick it out");
             break;
           case 1:
+            Serial.println(" * lock it");
             F14_LockHandler(LOCK_BALL_IN_1);  // If lit, lock the ball
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+            Serial.println(" * noisy switch");
             break;
         }
       }
@@ -1354,7 +1379,10 @@ void F14_LockHandler(byte Event) {
       
       break;
     case BALL_ARRIVED_LOCK_2: // Lock number 2
+    Serial.println(" * arrived in lock 2");
       if (Multiballs==1) {
+        Serial.println(" * single ball play");
+        
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[1]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[1]=1;
@@ -1365,12 +1393,19 @@ void F14_LockHandler(byte Event) {
         }
         switch (F14_LockStatus[Player][1]) {
           case 0:
+            F14_BlockSwitch(BALL_ARRIVED_LOCK_2,1200);  // block the switch until shortly after eject
             ActivateTimer(1000,5,ActA_BankSol);  // if not lit or locked, kick the ball out
+            Serial.println(" * kick it out");
+            
             break;
           case 1:
+            Serial.println(" * lock it");
+
             F14_LockHandler(LOCK_BALL_IN_2);
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+                      Serial.println(" * noisy switch");
+
             break;
         }
       }
@@ -1379,7 +1414,11 @@ void F14_LockHandler(byte Event) {
       }
       break;
     case BALL_ARRIVED_LOCK_3: // Lock number 3
+    Serial.println(" * arrived in lock 3");
+      
       if (Multiballs==1) {
+        Serial.println(" * single ball play");
+        
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         if (F14_LockOccupied[2]==2) {  // If waiting for a refill, mark lock with ball and exit
           F14_LockOccupied[2]=1;
@@ -1391,13 +1430,20 @@ void F14_LockHandler(byte Event) {
         }
         switch (F14_LockStatus[Player][2]) {
           case 0:
+          F14_BlockSwitch(BALL_ARRIVED_LOCK_3,1200);  // block the switch until shortly after eject
             ActivateTimer(1000,7,ActA_BankSol);  // if not lit or locked, kick the ball out
+                Serial.println(" * kick it out");
+        
             //ActA_BankSol(7);
             break;
           case 1:
+              Serial.println(" * lock it");
+
             F14_LockHandler(LOCK_BALL_IN_3);
             break;
           case 2: // Switch for lock, when ball already locked.  Probably bouncy switch
+                                Serial.println(" * noisy switch");
+
             break;
         }
       }
@@ -1458,7 +1504,7 @@ byte landing_count=0;
 
   // the first ball into a landing is actually still the multiball starting up, it's the ball that was in the vuk
   // so we don't score a landing for the first one.
-  if (!F14_LocksClearing) { 
+  if (!skip_next_lock) { 
     // Set the status on this one
     F14_LandingStatus[Player][Lock]=1;
 
@@ -1491,19 +1537,22 @@ byte landing_count=0;
   }
   else {
     if (!F14_LockOccupied[Lock]) {
-      F14_LocksClearing = 0;  // locks are now cleared.
+      skip_next_lock = 0;  // locks are now cleared.
     }
   }
 
   // Kick the ball back out
   switch (Lock) {
     case 0:
+      F14_BlockSwitch(BALL_ARRIVED_LOCK_1,1200);  // block the switch until shortly after eject
       ActivateTimer(1000,10,F14_ActivateSolenoid);
       break;
     case 1:
+      F14_BlockSwitch(BALL_ARRIVED_LOCK_2,1200);  // block the switch until shortly after eject
       ActivateTimer(1000,5,ActA_BankSol);
       break;
     case 2:
+      F14_BlockSwitch(BALL_ARRIVED_LOCK_3,1200);  // block the switch until shortly after eject
       ActivateTimer(1000,7,ActA_BankSol);
       break;
   }
@@ -1528,6 +1577,10 @@ byte landing_count=0;
 // after all the locks are emptied, then we reset the flags.
 void F14_ClearLocks(byte dummy) {
   UNUSED(dummy);
+if (APC_settings[DebugMode]) {                      // activate serial interface in debug mode
+    Serial.println("F14_ClearLocks");
+
+  }
 
       for (byte i=0; i< 3; i++ ) { // reset status of locks
         F14_LockStatus[Player][i]=0;
@@ -2432,7 +2485,7 @@ void F14_vUKHandler(byte Event) {
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus
         F14_BonusHandler(BONUS_INCREMENT); // increment end of ball bonus (again for 2k!)
         F14_SpotTomcat();
-        F14_LampShowPlayer(0,0);
+        F14_LampShowPlayer(LAMP_SHOW_PULSE,START_SHOW);
       }
       else { // in multiball
         F14_AnimationHandler(ANIMATION_SAFE_LANDING,ANIMATION_START); // safe landing, no callback on that one, it just plays
@@ -2536,7 +2589,9 @@ void F14_AnimationHandler(byte Animation, byte Status) {
       }
       break;
     case ANIMATION_SAFE_LANDING:
-      F14_SafeLandingAnimation(ANIMATION_START);
+      if (Status == ANIMATION_START) {
+        F14_SafeLandingAnimation(ANIMATION_START);
+      }
       break;
   }
 }
@@ -2630,7 +2685,7 @@ void F14_BallEnd(byte Event) {
       Multiballs = 1;
       ReleaseSolenoid(16); // switch off the beacons
       F14_LockLampHandler(); // tidy up the lock lamps
-      F14_LocksClearing=0; // if we were clearing locks, we're not now
+      skip_next_lock=0; // if we were clearing locks, we're not now
       WriteLower("                ");
       if (BallsInTrunk == 4) { // all balls in trunk?
         ActivateTimer(1000, 0, F14_BallEnd);}
@@ -3622,6 +3677,7 @@ static byte display_step_timer = 0;
     display_step_timer = 0;
     SwitchDisplay(1);  // back to the old display
     //F14_AnimationHandler(ANIMATION_LAUNCH_BONUS,ANIMATION_END); // let the handler know animation is done.
+    F14_vUKHandler(VUK_CALL_FROM_LAUNCH_BONUS);
   }
   else {
     display_step_timer = ActivateTimer(500,Event+1,F14_LaunchBonusAnimation);
@@ -4583,7 +4639,7 @@ case 61:
   break;
   }
   if (Step > 62) {
-    F14_LampShowPlayer(2,255);  // Tell the player we are done
+    F14_LampShowPlayer(LAMP_SHOW_PULSE,QUIT_SHOW);  // Tell the player we are done
   }
   else {
     ActivateTimer(20, Step + 1, F14_LampShowCentrePulse);
