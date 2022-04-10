@@ -2814,11 +2814,17 @@ void F14_AwardBonus (byte Event) {
   static int total_bonus;
   static byte bonus_timer;
   static byte temp_bonus;
+  static byte award_delay;
 
   switch (Event) {
     case AWARD_BONUS:
       total_bonus = F14_Bonus * F14_Multiplier * 1000;
       temp_bonus = F14_Bonus;
+      award_delay=5;
+      if (BallWatchdogTimer) {
+        KillTimer(BallWatchdogTimer);
+        BallWatchdogTimer = 0;
+      }
       WritePlayerDisplay((char *) "BONUS  ",1);
       DisplayScore(2, F14_Bonus * 1000);
       break;
@@ -2887,12 +2893,14 @@ void F14_AwardBonus (byte Event) {
         Event = 11;  // jump out once countdown complete
         break;
       }
+      WriteUpper("              ");
       DisplayScore(1, Points[Player]);
       DisplayScore(2, total_bonus);
 
       if (F14_Bonus == 0) {
         F14_Bonus = temp_bonus;
         F14_Multiplier  --;
+        if (award_delay > 2) award_delay --;  // get faster as we add the bonus
       }
       else {
         F14_Bonus --;
@@ -2914,7 +2922,7 @@ void F14_AwardBonus (byte Event) {
     bonus_timer = ActivateTimer(500, Event+1, F14_AwardBonus);
   }
   else {
-    bonus_timer = ActivateTimer(50, 10,  F14_AwardBonus);
+    bonus_timer = ActivateTimer(award_delay*10, 10,  F14_AwardBonus);
   }
 }
 
